@@ -4,9 +4,10 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates git \
  && rm -rf /var/lib/apt/lists/*
 
-ARG CRABTRAP_REF=main
+ARG CRABTRAP_REPO=https://github.com/pquerna/CrabTrap.git
+ARG CRABTRAP_REF=fix/close-unframed-tunnel-responses
 WORKDIR /src
-RUN git clone https://github.com/brexhq/CrabTrap.git . \
+RUN git clone "${CRABTRAP_REPO}" . \
  && git checkout "${CRABTRAP_REF}"
 
 WORKDIR /src/web
@@ -19,9 +20,10 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates git \
  && rm -rf /var/lib/apt/lists/*
 
-ARG CRABTRAP_REF=main
+ARG CRABTRAP_REPO=https://github.com/pquerna/CrabTrap.git
+ARG CRABTRAP_REF=fix/close-unframed-tunnel-responses
 WORKDIR /src
-RUN git clone https://github.com/brexhq/CrabTrap.git . \
+RUN git clone "${CRABTRAP_REPO}" . \
  && git checkout "${CRABTRAP_REF}"
 
 COPY --from=web-builder /src/web/dist /src/cmd/gateway/web/dist

@@ -23,6 +23,16 @@ YAML policy file. Current upstream CrabTrap works differently:
 - Static allow/deny rules are stored in the CrabTrap database as policy records.
 - The admin/API listener is hard-coded on container port `8081`.
 
+The CrabTrap image currently builds from:
+
+- Repository: `https://github.com/pquerna/CrabTrap.git`
+- Ref: `fix/close-unframed-tunnel-responses`
+
+That fork branch fixes an HTTP/1.1 tunnel hang where unknown-length responses
+without `Content-Length` or `Transfer-Encoding` were written to clients while
+the tunnel stayed open. Clients such as `curl` then waited forever for EOF even
+after receiving the complete response body.
+
 This build keeps the external LAN exposure minimal:
 
 - Unbound publishes only `192.168.32.100:53`.
