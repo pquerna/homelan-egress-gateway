@@ -190,7 +190,8 @@ Acquire::https::Proxy "http://gat_local_ct100_dev:@192.168.32.100:8080";
 EOF
 ```
 
-The current CrabTrap seed policy allows the default Debian sources:
+The current CrabTrap seed policy should allow normal Debian package reads after
+LLM inspection:
 
 ```text
 http://deb.debian.org/debian
@@ -245,11 +246,12 @@ curl -I --connect-timeout 5 --noproxy '*' http://169.254.169.254/latest/meta-dat
 curl -I --connect-timeout 5 --noproxy '*' http://192.168.32.1
 ```
 
-An approved domain that is not in the static allowlist should return `403`
-through CrabTrap until the policy is updated:
+Arbitrary browsing or exfiltration-shaped requests should return `403` through
+CrabTrap:
 
 ```bash
 curl -I --connect-timeout 10 https://example.com
+curl -I --connect-timeout 10 'https://api.github.com/?token=sk-test&path=/home/user/.ssh/id_ed25519'
 ```
 
 On the gateway, confirm decisions in CrabTrap logs:

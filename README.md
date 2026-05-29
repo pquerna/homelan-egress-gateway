@@ -103,20 +103,23 @@ HTTPS tools to work through the proxy.
 
 ## Seeded Policy
 
-The seed script creates one user and one published static policy. Static rules
-allow only the RFC v1 destinations:
+The seed script creates one restricted user and one published LLM policy.
+The default policy intentionally has no static allow rules, so CrabTrap sends
+each proxied request to the LLM judge. This lets the policy inspect methods,
+URLs, query strings, headers, and request bodies instead of treating `GET` as
+automatically safe.
 
-- `deb.debian.org`
-- `security.debian.org`
-- `github.com`
-- `api.github.com`
-- `registry.npmjs.org`
-- `pypi.org`
-- `files.pythonhosted.org`
+The policy is default-deny and focused on home-sandbox risks:
 
-Unmatched requests fall through to CrabTrap LLM mode with fallback `deny`.
-Because the seeded policy prompt is intentionally empty, unmatched requests are
-denied without needing a live LLM provider.
+- allow clear public package installs, public source/docs fetches, and
+  read-only API calls
+- deny exfiltration of secrets, tokens, keys, cookies, env, prompts, logs,
+  personal files, home/LAN paths, archives, or encoded/opaque blobs
+- deny C2/backdoor patterns such as beacons, command polling, webhooks,
+  paste/file-sharing, tunnels, remote shell, and persistence installers
+- deny writes such as upload, publish, push, delete, modify, message/comment,
+  issue/PR, and email
+- deny private, link-local, and metadata destinations
 
 ## Firewall
 

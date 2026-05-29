@@ -8,21 +8,11 @@ INSERT INTO llm_policies (
   status
 ) VALUES (
   'llmpol_egress_v1',
-  'egress-v1-static-allowlist',
-  'Home sandbox egress policy. Default DENY. Allow low-risk reads: package metadata/downloads, source fetch/clone, release files, and official technical docs. Allow GitHub git-upload-pack/read API only when it does not send secrets or local/private data. DENY data exfiltration: secrets, tokens, keys, cookies, env, SSH material, personal files, archives, logs, prompts, home/LAN data, or large/opaque payloads. DENY data deletion/modification: delete, overwrite, push, publish, upload, email/message/post, webhook, issue/PR/comment creation, repo/package changes, cloud-storage writes. DENY private/link-local/metadata destinations. If unsure, DENY.',
+  'egress-v1-home-sandbox',
+  'Default DENY. GET is not automatically safe; inspect URL/query/headers/body. Allow only clear public package installs, public source/docs fetches, and read-only API calls. DENY exfiltration: secrets, tokens, keys, cookies, env, prompts, logs, personal files, home/LAN paths, archives, large or encoded/opaque blobs. DENY C2/backdoors: beacons, polling for commands, webhooks, paste/file-sharing, tunnels, remote shell, persistence installers. DENY writes: upload, publish, push, delete, modify, message/comment/issue/PR/email. DENY private/link-local/metadata destinations. If unsure, DENY.',
   '',
   '',
-  '[
-    {"methods":["GET","HEAD"],"url_pattern":"http://deb.debian.org/","match_type":"prefix","action":"allow"},
-    {"methods":["GET","HEAD"],"url_pattern":"https://deb.debian.org/","match_type":"prefix","action":"allow"},
-    {"methods":["GET","HEAD"],"url_pattern":"http://security.debian.org/","match_type":"prefix","action":"allow"},
-    {"methods":["GET","HEAD"],"url_pattern":"https://security.debian.org/","match_type":"prefix","action":"allow"},
-    {"methods":["GET","HEAD"],"url_pattern":"https://github.com/","match_type":"prefix","action":"allow"},
-    {"methods":["GET","HEAD"],"url_pattern":"https://api.github.com/","match_type":"prefix","action":"allow"},
-    {"methods":["GET","HEAD"],"url_pattern":"https://registry.npmjs.org/","match_type":"prefix","action":"allow"},
-    {"methods":["GET","HEAD"],"url_pattern":"https://pypi.org/","match_type":"prefix","action":"allow"},
-    {"methods":["GET","HEAD"],"url_pattern":"https://files.pythonhosted.org/","match_type":"prefix","action":"allow"}
-  ]'::jsonb,
+  '[]'::jsonb,
   'published'
 ) ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
