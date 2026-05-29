@@ -17,7 +17,7 @@ Environment=DATABASE_URL=postgres://crabtrap:crabtrap-local-change-me@egress-pos
 Environment=AWS_EC2_METADATA_DISABLED=true
 EnvironmentFile=/etc/egress-gateway/crabtrap.env
 
-Volume=/opt/egress-gateway/crabtrap/config.yaml:/app/config/gateway.yaml:ro
+Volume=/etc/egress-gateway/crabtrap-config.yaml:/app/config/gateway.yaml:ro
 Volume=/opt/egress-gateway/crabtrap/certs:/app/certs:Z
 
 [Service]

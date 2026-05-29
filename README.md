@@ -54,6 +54,7 @@ This build keeps the external LAN exposure minimal:
   scripts/
     build-images.sh
     install.sh
+    egress-mode.sh
     seed-crabtrap-policy.sh
     validate-from-lxc.sh
   docs/
@@ -104,8 +105,13 @@ HTTPS tools to work through the proxy.
 ## Seeded Policy
 
 The seed script creates one restricted user and one published LLM policy.
-The default policy intentionally has no static allow rules, so CrabTrap sends
-each proxied request to the LLM judge. This lets the policy inspect methods,
+Obvious package-manager fetches are statically allowed for reliability:
+
+- Debian package repositories
+- npm registry reads
+- PyPI metadata and Python package file reads
+
+Everything else goes to the LLM judge. This lets the policy inspect methods,
 URLs, query strings, headers, and request bodies instead of treating `GET` as
 automatically safe.
 

@@ -12,7 +12,15 @@ INSERT INTO llm_policies (
   'Default DENY. GET is not automatically safe; inspect URL/query/headers/body. Allow only clear public package installs, public source/docs fetches, and read-only API calls. DENY exfiltration: secrets, tokens, keys, cookies, env, prompts, logs, personal files, home/LAN paths, archives, large or encoded/opaque blobs. DENY C2/backdoors: beacons, polling for commands, webhooks, paste/file-sharing, tunnels, remote shell, persistence installers. DENY writes: upload, publish, push, delete, modify, message/comment/issue/PR/email. DENY private/link-local/metadata destinations. If unsure, DENY.',
   '',
   '',
-  '[]'::jsonb,
+  '[
+    {"methods":["GET","HEAD"],"url_pattern":"http://deb.debian.org/","match_type":"prefix","action":"allow"},
+    {"methods":["GET","HEAD"],"url_pattern":"https://deb.debian.org/","match_type":"prefix","action":"allow"},
+    {"methods":["GET","HEAD"],"url_pattern":"http://security.debian.org/","match_type":"prefix","action":"allow"},
+    {"methods":["GET","HEAD"],"url_pattern":"https://security.debian.org/","match_type":"prefix","action":"allow"},
+    {"methods":["GET","HEAD"],"url_pattern":"https://registry.npmjs.org/","match_type":"prefix","action":"allow"},
+    {"methods":["GET","HEAD"],"url_pattern":"https://pypi.org/","match_type":"prefix","action":"allow"},
+    {"methods":["GET","HEAD"],"url_pattern":"https://files.pythonhosted.org/","match_type":"prefix","action":"allow"}
+  ]'::jsonb,
   'published'
 ) ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,

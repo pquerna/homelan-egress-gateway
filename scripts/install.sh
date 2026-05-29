@@ -24,6 +24,9 @@ else
   echo "missing /root/.env-openai-key; create /etc/egress-gateway/crabtrap.env with OPENAI_API_KEY before starting CrabTrap" >&2
 fi
 
+install -m 0644 "$EGRESS_HOME/crabtrap/config.yaml" \
+  /etc/egress-gateway/crabtrap-config.yaml
+
 install -m 0644 "$EGRESS_HOME/quadlet/egress-gateway.network" \
   /etc/containers/systemd/egress-gateway.network
 

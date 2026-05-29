@@ -55,6 +55,38 @@ cd /opt/egress-gateway
 GATEWAY_AUTH_TOKEN=gat_local_ct100_dev ./scripts/seed-crabtrap-policy.sh
 ```
 
+## Egress Modes
+
+Standard mode is the normal default. It restores the home egress policy:
+package-manager fetches are statically allowed, and other proxied requests go
+through the LLM judge.
+
+```bash
+/opt/egress-gateway/scripts/egress-mode.sh standard
+```
+
+Open mode switches CrabTrap to passthrough approval. Traffic is still audited,
+but policy does not block requests. Use it only temporarily for software
+installation or troubleshooting:
+
+```bash
+/opt/egress-gateway/scripts/egress-mode.sh open 30m
+```
+
+The optional duration is passed to `systemd-run --on-active`; examples include
+`10m`, `30m`, and `2h`. After the timer expires, the gateway resets to standard
+mode. To opt out of auto-reset:
+
+```bash
+/opt/egress-gateway/scripts/egress-mode.sh open none
+```
+
+Check the current mode:
+
+```bash
+/opt/egress-gateway/scripts/egress-mode.sh status
+```
+
 ## Inspect Generated Units
 
 ```bash
