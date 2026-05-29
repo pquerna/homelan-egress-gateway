@@ -27,8 +27,8 @@ This build keeps the external LAN exposure minimal:
 
 - Unbound publishes only `192.168.32.100:53`.
 - CrabTrap publishes only `192.168.32.100:8080`.
+- CrabTrap admin/API publishes only `127.0.0.1:8081` for SSH tunneling.
 - PostgreSQL is only on the private Podman network.
-- CrabTrap admin/API `8081` is not published.
 
 ## Layout
 

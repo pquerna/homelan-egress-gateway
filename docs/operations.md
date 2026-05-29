@@ -19,6 +19,26 @@ journalctl -u egress-postgres.service -f
 CrabTrap audit and allow/deny decisions are emitted as JSON logs to stderr and
 captured by journald.
 
+## Admin UI
+
+The CrabTrap admin UI is bound only on gateway loopback:
+
+```text
+127.0.0.1:8081
+```
+
+Access it from a workstation with an SSH tunnel:
+
+```bash
+ssh -L 8081:127.0.0.1:8081 root@192.168.32.100
+```
+
+Then open:
+
+```text
+http://localhost:8081/
+```
+
 ## Rebuild
 
 ```bash
