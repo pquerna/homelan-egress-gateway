@@ -9,7 +9,7 @@ INSERT INTO llm_policies (
 ) VALUES (
   'llmpol_egress_v1',
   'egress-v1-static-allowlist',
-  '',
+  'Home sandbox egress policy. Default DENY. Allow low-risk reads: package metadata/downloads, source fetch/clone, release files, and official technical docs. Allow GitHub git-upload-pack/read API only when it does not send secrets or local/private data. DENY data exfiltration: secrets, tokens, keys, cookies, env, SSH material, personal files, archives, logs, prompts, home/LAN data, or large/opaque payloads. DENY data deletion/modification: delete, overwrite, push, publish, upload, email/message/post, webhook, issue/PR/comment creation, repo/package changes, cloud-storage writes. DENY private/link-local/metadata destinations. If unsure, DENY.',
   '',
   '',
   '[
@@ -17,8 +17,8 @@ INSERT INTO llm_policies (
     {"methods":["GET","HEAD"],"url_pattern":"https://deb.debian.org/","match_type":"prefix","action":"allow"},
     {"methods":["GET","HEAD"],"url_pattern":"http://security.debian.org/","match_type":"prefix","action":"allow"},
     {"methods":["GET","HEAD"],"url_pattern":"https://security.debian.org/","match_type":"prefix","action":"allow"},
-    {"methods":["GET","HEAD","POST"],"url_pattern":"https://github.com/","match_type":"prefix","action":"allow"},
-    {"methods":["GET","HEAD","POST"],"url_pattern":"https://api.github.com/","match_type":"prefix","action":"allow"},
+    {"methods":["GET","HEAD"],"url_pattern":"https://github.com/","match_type":"prefix","action":"allow"},
+    {"methods":["GET","HEAD"],"url_pattern":"https://api.github.com/","match_type":"prefix","action":"allow"},
     {"methods":["GET","HEAD"],"url_pattern":"https://registry.npmjs.org/","match_type":"prefix","action":"allow"},
     {"methods":["GET","HEAD"],"url_pattern":"https://pypi.org/","match_type":"prefix","action":"allow"},
     {"methods":["GET","HEAD"],"url_pattern":"https://files.pythonhosted.org/","match_type":"prefix","action":"allow"}
