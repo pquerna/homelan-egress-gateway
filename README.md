@@ -59,6 +59,7 @@ This build keeps the external LAN exposure minimal:
   docs/
     rfc-ingested.md
     lxc-client-config.md
+    proxmox-lxc-egress-enforcement.md
     operations.md
 ```
 
