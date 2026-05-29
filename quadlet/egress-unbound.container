@@ -13,6 +13,8 @@ PublishPort=192.168.32.100:53:53/udp
 ReadOnly=true
 DropCapability=all
 AddCapability=NET_BIND_SERVICE
+AddCapability=SETUID
+AddCapability=SETGID
 NoNewPrivileges=true
 
 [Service]
