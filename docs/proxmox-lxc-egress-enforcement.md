@@ -50,6 +50,9 @@ policy_out: DROP
 ipfilter: 1
 
 [RULES]
+# SSH into the container from the LAN
+IN ACCEPT -p tcp -source 192.168.32.0/20 -dport 22
+
 # DNS to egress gateway only
 OUT ACCEPT -p udp -dest 192.168.32.100 -dport 53
 OUT ACCEPT -p tcp -dest 192.168.32.100 -dport 53
@@ -61,6 +64,10 @@ EOF
 
 Do not add general outbound allow rules such as `OUT ACCEPT -p tcp -dport 443`.
 That would bypass CrabTrap.
+
+The inbound SSH rule only lets LAN clients initiate SSH to the container.
+Proxmox firewalling is stateful, so SSH response packets are allowed as part of
+the established connection; you do not need a broad outbound SSH rule.
 
 Apply/reload the firewall:
 
