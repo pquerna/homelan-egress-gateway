@@ -1,0 +1,53 @@
+FROM docker.io/library/node:22-bookworm-slim AS web-builder
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates git \
+ && rm -rf /var/lib/apt/lists/*
+
+ARG CRABTRAP_REF=main
+WORKDIR /src
+RUN git clone https://github.com/brexhq/CrabTrap.git . \
+ && git checkout "${CRABTRAP_REF}"
+
+WORKDIR /src/web
+RUN npm install \
+ && npm run build
+
+FROM docker.io/library/golang:1.26-bookworm AS go-builder
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates git \
+ && rm -rf /var/lib/apt/lists/*
+
+ARG CRABTRAP_REF=main
+WORKDIR /src
+RUN git clone https://github.com/brexhq/CrabTrap.git . \
+ && git checkout "${CRABTRAP_REF}"
+
+COPY --from=web-builder /src/web/dist /src/cmd/gateway/web/dist
+
+RUN go build \
+      -ldflags "-s -w -X main.version=local -X main.commit=${CRABTRAP_REF} -X main.buildDate=local" \
+      -o /out/gateway \
+      ./cmd/gateway
+
+FROM docker.io/library/debian:13-slim
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates wget \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY --from=go-builder /out/gateway /app/gateway
+COPY config.yaml /app/config/gateway.yaml
+
+RUN mkdir -p /app/certs
+
+EXPOSE 8080/tcp
+EXPOSE 8081/tcp
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:8081/health || exit 1
+
+ENTRYPOINT ["/app/gateway"]
+CMD ["-config", "/app/config/gateway.yaml"]

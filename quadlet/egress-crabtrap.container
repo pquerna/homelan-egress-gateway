@@ -1,0 +1,27 @@
+[Unit]
+Description=CrabTrap Egress Proxy
+After=network-online.target egress-postgres.service
+Wants=network-online.target egress-postgres.service
+
+[Container]
+Image=localhost/egress-crabtrap:local
+ContainerName=egress-crabtrap
+Network=egress-gateway.network
+
+PublishPort=192.168.32.100:8080:8080/tcp
+
+NoNewPrivileges=true
+
+Environment=DATABASE_URL=postgres://crabtrap:crabtrap-local-change-me@egress-postgres:5432/crabtrap?sslmode=disable
+Environment=AWS_EC2_METADATA_DISABLED=true
+EnvironmentFile=/etc/egress-gateway/crabtrap.env
+
+Volume=/opt/egress-gateway/crabtrap/config.yaml:/app/config/gateway.yaml:ro
+Volume=/opt/egress-gateway/crabtrap/certs:/app/certs:Z
+
+[Service]
+Restart=always
+RestartSec=2s
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,13 @@
+[OPTIONS]
+enable: 1
+policy_in: DROP
+policy_out: DROP
+ipfilter: 1
+
+[RULES]
+# DNS to gateway only
+OUT ACCEPT -p udp -dest 192.168.32.100 -dport 53
+OUT ACCEPT -p tcp -dest 192.168.32.100 -dport 53
+
+# CrabTrap only HTTP/HTTPS egress path
+OUT ACCEPT -p tcp -dest 192.168.32.100 -dport 8080

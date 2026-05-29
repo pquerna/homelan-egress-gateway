@@ -1,0 +1,2 @@
+crabtrap/certs/*
+!crabtrap/certs/.gitkeep

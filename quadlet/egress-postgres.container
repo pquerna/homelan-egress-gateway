@@ -1,0 +1,22 @@
+[Unit]
+Description=Egress Gateway CrabTrap PostgreSQL
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=docker.io/library/postgres:17-alpine
+ContainerName=egress-postgres
+Network=egress-gateway.network
+
+Environment=POSTGRES_DB=crabtrap
+Environment=POSTGRES_USER=crabtrap
+Environment=POSTGRES_PASSWORD=crabtrap-local-change-me
+
+Volume=egress-postgres-data:/var/lib/postgresql/data:Z
+
+[Service]
+Restart=always
+RestartSec=2s
+
+[Install]
+WantedBy=multi-user.target

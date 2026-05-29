@@ -1,0 +1,44 @@
+log_level: info
+
+proxy:
+  port: 8080
+  read_timeout: 600s
+  write_timeout: 600s
+  idle_timeout: 120s
+  rate_limit_per_ip: 50
+  rate_limit_burst: 100
+
+tls:
+  ca_cert_path: /app/certs/ca.crt
+  ca_key_path: /app/certs/ca.key
+  max_cert_cache_size: 10000
+
+approval:
+  mode: llm
+  timeout: 30s
+
+audit:
+  output: stderr
+  format: json
+
+admin:
+  secure_cookie: false
+
+database:
+  url: "${DATABASE_URL}"
+  max_conns: 10
+  min_conns: 2
+
+llm_judge:
+  enabled: true
+  provider: openai
+  eval_model: gpt-5.4-mini
+  fast_model: gpt-5.4-mini
+  thinking_model: gpt-5.4-mini
+  openai_api_key: "${OPENAI_API_KEY}"
+  fallback_mode: deny
+  timeout: 30s
+
+observability:
+  metrics:
+    enabled: false

@@ -1,0 +1,6 @@
+[Unit]
+Description=Private network for egress gateway support containers
+
+[Network]
+Driver=bridge
+Internal=false
