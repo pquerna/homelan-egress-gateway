@@ -186,6 +186,35 @@ proxy = http://gat_local_ct100_dev:@192.168.32.100:8080
 EOF
 ```
 
+## Codex CLI Proxy Environment
+
+Codex can load additional environment variables from `~/.codex/.env`. Use this
+for Codex and its MCP subprocesses, because they may not inherit every shell or
+systemd environment setting.
+
+Create this for each user that runs Codex inside the restricted LXC:
+
+```bash
+mkdir -p ~/.codex
+cat >~/.codex/.env <<'EOF'
+HTTP_PROXY=http://gat_local_ct100_dev:@192.168.32.100:8080
+HTTPS_PROXY=http://gat_local_ct100_dev:@192.168.32.100:8080
+http_proxy=http://gat_local_ct100_dev:@192.168.32.100:8080
+https_proxy=http://gat_local_ct100_dev:@192.168.32.100:8080
+NO_PROXY=localhost,127.0.0.1,::1,192.168.32.100
+no_proxy=localhost,127.0.0.1,::1,192.168.32.100
+
+SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/crabtrap.crt
+GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt
+EOF
+chmod 0600 ~/.codex/.env
+```
+
+Do not set `all_proxy` unless you are intentionally using a SOCKS proxy. This
+gateway exposes an HTTP proxy only.
+
 ## APT Proxy
 
 Configure APT explicitly. This avoids relying on shell profile files:
