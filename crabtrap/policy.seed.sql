@@ -19,7 +19,17 @@ INSERT INTO llm_policies (
     {"methods":["GET","HEAD"],"url_pattern":"https://security.debian.org/","match_type":"prefix","action":"allow"},
     {"methods":["GET","HEAD"],"url_pattern":"https://registry.npmjs.org/","match_type":"prefix","action":"allow"},
     {"methods":["GET","HEAD"],"url_pattern":"https://pypi.org/","match_type":"prefix","action":"allow"},
-    {"methods":["GET","HEAD"],"url_pattern":"https://files.pythonhosted.org/","match_type":"prefix","action":"allow"}
+    {"methods":["GET","HEAD"],"url_pattern":"https://files.pythonhosted.org/","match_type":"prefix","action":"allow"},
+
+    {"methods":["GET","HEAD","POST"],"url_pattern":"https://api.openai.com/","match_type":"prefix","action":"allow"},
+    {"methods":["GET","HEAD","POST"],"url_pattern":"https://auth.openai.com/api/accounts/deviceauth/","match_type":"prefix","action":"allow"},
+    {"methods":["POST"],"url_pattern":"https://auth.openai.com/oauth/token","match_type":"exact","action":"allow"},
+    {"methods":["GET","HEAD"],"url_pattern":"https://chatgpt.com/codex/install.sh","match_type":"exact","action":"allow"},
+    {"methods":["GET","HEAD","POST"],"url_pattern":"https://chatgpt.com/backend-api/codex/","match_type":"prefix","action":"allow"},
+    {"methods":["GET","HEAD","POST"],"url_pattern":"https://chatgpt.com/backend-api/ps/plugins/","match_type":"prefix","action":"allow"},
+    {"methods":["GET","HEAD"],"url_pattern":"https://chatgpt.com/backend-api/plugins/featured","match_type":"prefix","action":"allow"},
+    {"methods":["GET","HEAD","POST"],"url_pattern":"https://chatgpt.com/backend-api/wham/","match_type":"prefix","action":"allow"},
+    {"methods":["GET","HEAD"],"url_pattern":"https://chatgpt.com/backend-api/connectors/directory/list","match_type":"prefix","action":"allow"}
   ]'::jsonb,
   'published'
 ) ON CONFLICT (id) DO UPDATE SET
