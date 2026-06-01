@@ -1,0 +1,105 @@
+version: 1
+
+tenancy:
+  default_tenant: default
+  tenants:
+    - id: default
+
+ca:
+  cert_path: /opt/egress-gateway/crabtrap/certs/ca.crt
+  key_path: /opt/egress-gateway/crabtrap/certs/ca.key
+
+policy:
+  default_verdict: DENY
+  fallback_mode: DENY
+  enforcement: enforce
+  body_mode: full_buffer
+  body_cap_bytes: 1048576
+
+upstream:
+  version: http1
+
+listeners:
+  - name: http-explicit
+    bind: "192.168.32.100:8080"
+    mode: explicit
+    plane: http
+    tls:
+      mitm: mitm
+    routes:
+      - name: debian-main
+        match_host: "deb.debian.org"
+        policy: { default_verdict: ALLOW }
+      - name: debian-security
+        match_host: "security.debian.org"
+        policy: { default_verdict: ALLOW }
+      - name: npm
+        match_host: "registry.npmjs.org"
+        policy: { default_verdict: ALLOW }
+      - name: pypi
+        match_host: "pypi.org"
+        policy: { default_verdict: ALLOW }
+      - name: pythonhosted
+        match_host: "files.pythonhosted.org"
+        policy: { default_verdict: ALLOW }
+      - name: github
+        match_host: "github.com"
+        policy: { default_verdict: ALLOW }
+      - name: github-api
+        match_host: "api.github.com"
+        policy: { default_verdict: ALLOW }
+      - name: github-raw
+        match_host: "raw.githubusercontent.com"
+        policy: { default_verdict: ALLOW }
+      - name: github-objects
+        match_host: "objects.githubusercontent.com"
+        policy: { default_verdict: ALLOW }
+      - name: githubusercontent
+        match_host: "*.githubusercontent.com"
+        policy: { default_verdict: ALLOW }
+      - name: openai-api
+        match_host: "api.openai.com"
+        policy: { default_verdict: ALLOW }
+      - name: openai-auth
+        match_host: "auth.openai.com"
+        policy: { default_verdict: ALLOW }
+      - name: chatgpt
+        match_host: "chatgpt.com"
+        policy: { default_verdict: ALLOW }
+
+entitlement:
+  rules:
+    - name: lan-restricted-containers
+      posture: deny
+      allowed_destinations:
+        - deb.debian.org
+        - security.debian.org
+        - registry.npmjs.org
+        - pypi.org
+        - files.pythonhosted.org
+        - github.com
+        - api.github.com
+        - raw.githubusercontent.com
+        - objects.githubusercontent.com
+        - "*.githubusercontent.com"
+        - api.openai.com
+        - auth.openai.com
+        - chatgpt.com
+
+storage_sinks:
+  - id: local-jsonl
+    kind: disk
+    path: /opt/egress-gateway/timebandit/log/audit.jsonl
+
+detection:
+  pipeline:
+    - id: stage0
+      kind: stage0-deterministic
+
+admin:
+  enabled: true
+  socket_path: /run/timebandit/admin.sock
+  http_addr: "127.0.0.1:9901"
+
+deny_response:
+  proxy_status_name: timebandit-egress

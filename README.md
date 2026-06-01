@@ -1,71 +1,80 @@
-# Minimal Local CrabTrap Egress Gateway
+# Minimal Local Time Bandit Egress Gateway
 
-This project implements the local egress gateway described in the RFC, adjusted
-for this LAN:
+This project implements the local egress gateway described in the original
+CrabTrap RFC, adjusted for this LAN and the current proxy implementation:
 
 - Gateway LAN IP: `192.168.32.100`
 - LAN subnet: `192.168.32.0/20`
 - DNS service exposed to LAN: `192.168.32.100:53/tcp+udp`
-- CrabTrap proxy exposed to LAN: `192.168.32.100:8080/tcp`
+- Time Bandit proxy exposed to LAN: `192.168.32.100:8080/tcp`
 
-The intended security boundary is still the LXC firewall: restricted containers
-must only be able to open outbound sockets to `192.168.32.100:53` and
+The security boundary is still the LXC firewall. Restricted containers must
+only be able to open outbound sockets to `192.168.32.100:53` and
 `192.168.32.100:8080`.
 
-## Current CrabTrap Reality
+## Current Proxy Reality
 
-The draft RFC assumed CrabTrap could run as a simple standalone proxy with a
-YAML policy file. Current upstream CrabTrap works differently:
+The gateway now runs Time Bandit as the egress proxy instead of CrabTrap.
+Unbound still provides DNS.
 
-- It requires PostgreSQL for users, policies, and audit state.
-- It requires proxy authentication with a `gat_...` gateway-auth token.
-- It performs HTTPS interception using a generated CA certificate.
-- Static allow/deny rules are stored in the CrabTrap database as policy records.
-- The admin/API listener is hard-coded on container port `8081`.
+Time Bandit is installed as a host systemd service:
 
-The CrabTrap image currently builds from:
+- Unit: `egress-timebandit.service`
+- Runtime config: `/opt/egress-gateway/timebandit/config.yaml`
+- Standard config: `/opt/egress-gateway/timebandit/config.standard.yaml`
+- Temporary open config: `/opt/egress-gateway/timebandit/config.open.yaml`
+- Audit log: `/opt/egress-gateway/timebandit/log/audit.jsonl`
+- Admin HTTP: `127.0.0.1:9901`
+- Admin socket: `/run/timebandit/admin.sock`
 
-- Repository: `https://github.com/pquerna/CrabTrap.git`
-- Ref: `fix/close-unframed-tunnel-responses`
+The service reuses the existing local CA files at:
 
-That fork branch fixes an HTTP/1.1 tunnel hang where unknown-length responses
-without `Content-Length` or `Transfer-Encoding` were written to clients while
-the tunnel stayed open. Clients such as `curl` then waited forever for EOF even
-after receiving the complete response body.
+```text
+/opt/egress-gateway/crabtrap/certs/ca.crt
+/opt/egress-gateway/crabtrap/certs/ca.key
+```
 
-This build keeps the external LAN exposure minimal:
+Do not copy `ca.key` into client containers.
 
-- Unbound publishes only `192.168.32.100:53`.
-- CrabTrap publishes only `192.168.32.100:8080`.
-- CrabTrap admin/API publishes only `127.0.0.1:8081` for SSH tunneling.
-- PostgreSQL is only on the private Podman network.
+## HTTPS Proxy Limitation
+
+Time Bandit currently handles HTTPS proxy traffic through plain HTTP `CONNECT`
+on `192.168.32.100:8080`.
+
+It does not currently handle plain HTTP absolute-form forward-proxy requests on
+that listener. In practice:
+
+- `https://...` through the proxy works.
+- `http://...` through the proxy currently returns `400 Bad Request`.
+
+Until upstream supports that path, use HTTPS package repository URLs inside
+restricted containers.
 
 ## Layout
 
 ```text
 /opt/egress-gateway/
   README.md
-  crabtrap/
-    Containerfile
-    config.yaml
-    policy.seed.sql
-    certs/
+  timebandit/
+    config.standard.yaml
+    config.open.yaml
+    config.yaml          # runtime copy, ignored by git
+    bin/                 # local Time Bandit binaries, ignored by git
+    log/                 # local audit logs, ignored by git
   unbound/
     Containerfile
     unbound.conf
   quadlet/
-    egress-gateway.network
-    egress-postgres.container
     egress-unbound.container
-    egress-crabtrap.container
+  systemd/
+    egress-timebandit.service
   firewall/
     nftables.conf
     proxmox-ct-example.fw
   scripts/
     build-images.sh
     install.sh
-    egress-mode.sh
-    seed-crabtrap-policy.sh
+    timebandit-mode.sh
     validate-from-lxc.sh
   docs/
     rfc-ingested.md
@@ -74,76 +83,68 @@ This build keeps the external LAN exposure minimal:
     operations.md
 ```
 
+The old CrabTrap files are retained in the repo for reference and rollback, but
+they are no longer the active gateway service.
+
 ## Install
 
-Run on the Debian 13 gateway host:
+Run on the Debian 13 gateway host after placing `timebanditd` and `tbctl` under
+`/opt/egress-gateway/timebandit/bin/`:
 
 ```bash
 cd /opt/egress-gateway
 sudo ./scripts/install.sh
 ```
 
-The install script installs packages, builds local images, installs Quadlet
-units, starts Postgres, starts Unbound, starts CrabTrap, and seeds the initial
-CrabTrap static policy.
+The install script installs base packages, builds the Unbound image, disables
+the old CrabTrap/Postgres units if present, installs the Time Bandit systemd
+unit, starts Unbound, and starts Time Bandit.
 
 ## Restricted LXC Proxy Settings
 
-CrabTrap requires gateway-auth in the proxy URL. The default seeded token is:
-
-```text
-gat_local_ct100_dev
-```
-
-Use:
+Time Bandit does not require a gateway-auth token in the proxy URL.
 
 ```bash
-export HTTP_PROXY=http://gat_local_ct100_dev:@192.168.32.100:8080
-export HTTPS_PROXY=http://gat_local_ct100_dev:@192.168.32.100:8080
+export HTTP_PROXY=http://192.168.32.100:8080
+export HTTPS_PROXY=http://192.168.32.100:8080
 export NO_PROXY=localhost,127.0.0.1,::1,192.168.32.100
 ```
 
-For HTTPS requests, CrabTrap generates a local CA at:
+Install the gateway CA into each restricted LXC trust store before expecting
+normal HTTPS tools to work through the proxy.
 
-```text
-/opt/egress-gateway/crabtrap/certs/ca.crt
-```
+## Standard Policy
 
-Install that CA into each restricted LXC trust store before expecting normal
-HTTPS tools to work through the proxy.
-
-## Seeded Policy
-
-The seed script creates one restricted user and one published LLM policy.
-Obvious package-manager fetches are statically allowed for reliability:
+Standard mode is default-deny and allows known software and LLM service
+destinations:
 
 - Debian package repositories
 - npm registry reads
-- PyPI metadata and Python package file reads
+- PyPI metadata and Python package files
+- GitHub and GitHubusercontent
+- OpenAI API, ChatGPT auth/backend endpoints used by Codex
 
-Everything else goes to the LLM judge. This lets the policy inspect methods,
-URLs, query strings, headers, and request bodies instead of treating `GET` as
-automatically safe.
+Unapproved public destinations are denied. Private, loopback, link-local, and
+metadata destinations remain blocked by Time Bandit and by the LXC firewall.
 
-The policy is default-deny and focused on home-sandbox risks:
+## Egress Modes
 
-- allow clear public package installs, public source/docs fetches, and
-  read-only API calls
-- deny exfiltration of secrets, tokens, keys, cookies, env, prompts, logs,
-  personal files, home/LAN paths, archives, or encoded/opaque blobs
-- deny C2/backdoor patterns such as beacons, command polling, webhooks,
-  paste/file-sharing, tunnels, remote shell, and persistence installers
-- deny writes such as upload, publish, push, delete, modify, message/comment,
-  issue/PR, and email
-- deny private, link-local, and metadata destinations
+```bash
+/opt/egress-gateway/scripts/timebandit-mode.sh status
+/opt/egress-gateway/scripts/timebandit-mode.sh standard
+/opt/egress-gateway/scripts/timebandit-mode.sh open 30m
+```
+
+Open mode allows public destinations temporarily while keeping Time Bandit
+running, preserving audit logging and built-in private-network protections.
 
 ## Firewall
 
 Use `firewall/nftables.conf` as the gateway host firewall baseline. It allows:
 
 - DNS from `192.168.32.0/20`
-- CrabTrap proxy from `192.168.32.0/20`
+- Time Bandit proxy from `192.168.32.0/20`
 - SSH from `192.168.32.0/20`
 
 The Proxmox LXC firewall must still enforce the restricted-container outbound
-boundary. See `docs/lxc-client-config.md`.
+boundary. See `docs/proxmox-lxc-egress-enforcement.md`.

@@ -1,3 +1,6 @@
 crabtrap/certs/*
 !crabtrap/certs/.gitkeep
 src/CrabTrap/
+timebandit/bin/
+timebandit/log/
+timebandit/config.yaml

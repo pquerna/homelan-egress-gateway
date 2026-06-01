@@ -1,0 +1,46 @@
+version: 1
+
+tenancy:
+  default_tenant: default
+  tenants:
+    - id: default
+
+ca:
+  cert_path: /opt/egress-gateway/crabtrap/certs/ca.crt
+  key_path: /opt/egress-gateway/crabtrap/certs/ca.key
+
+policy:
+  default_verdict: ALLOW
+  fallback_mode: DENY
+  enforcement: enforce
+  body_mode: full_buffer
+  body_cap_bytes: 1048576
+
+upstream:
+  version: http1
+
+listeners:
+  - name: http-explicit
+    bind: "192.168.32.100:8080"
+    mode: explicit
+    plane: http
+    tls:
+      mitm: mitm
+
+storage_sinks:
+  - id: local-jsonl
+    kind: disk
+    path: /opt/egress-gateway/timebandit/log/audit.jsonl
+
+detection:
+  pipeline:
+    - id: stage0
+      kind: stage0-deterministic
+
+admin:
+  enabled: true
+  socket_path: /run/timebandit/admin.sock
+  http_addr: "127.0.0.1:9901"
+
+deny_response:
+  proxy_status_name: timebandit-egress

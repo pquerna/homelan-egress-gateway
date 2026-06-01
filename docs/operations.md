@@ -3,74 +3,72 @@
 ## Service Status
 
 ```bash
-systemctl status egress-postgres.service
 systemctl status egress-unbound.service
-systemctl status egress-crabtrap.service
+systemctl status egress-timebandit.service
 ```
 
 ## Logs
 
 ```bash
 journalctl -u egress-unbound.service -f
-journalctl -u egress-crabtrap.service -f
-journalctl -u egress-postgres.service -f
+journalctl -u egress-timebandit.service -f
+tail -f /opt/egress-gateway/timebandit/log/audit.jsonl
 ```
 
-CrabTrap audit and allow/deny decisions are emitted as JSON logs to stderr and
-captured by journald.
+Time Bandit writes structured audit events to
+`/opt/egress-gateway/timebandit/log/audit.jsonl`.
 
-## Admin UI
+## Admin Endpoint
 
-The CrabTrap admin UI is bound only on gateway loopback:
+Time Bandit admin HTTP is bound only on gateway loopback:
 
 ```text
-127.0.0.1:8081
+127.0.0.1:9901
 ```
 
 Access it from a workstation with an SSH tunnel:
 
 ```bash
-ssh -L 8081:127.0.0.1:8081 root@192.168.32.100
+ssh -L 9901:127.0.0.1:9901 root@192.168.32.100
 ```
 
 Then open:
 
 ```text
-http://localhost:8081/
+http://localhost:9901/
 ```
 
-## Rebuild
+The admin socket is:
+
+```text
+/run/timebandit/admin.sock
+```
+
+## Rebuild Unbound
 
 ```bash
 cd /opt/egress-gateway
 ./scripts/build-images.sh
-systemctl restart egress-crabtrap.service
 systemctl restart egress-unbound.service
 ```
 
-## Reseed Policy
-
-```bash
-cd /opt/egress-gateway
-GATEWAY_AUTH_TOKEN=gat_local_ct100_dev ./scripts/seed-crabtrap-policy.sh
-```
+Time Bandit is built from `/root/timebandit-proxy` and installed as local
+binaries under `/opt/egress-gateway/timebandit/bin/`.
 
 ## Egress Modes
 
-Standard mode is the normal default. It restores the home egress policy:
-package-manager fetches are statically allowed, and other proxied requests go
-through the LLM judge.
+Standard mode is the normal default. It restores the destination allowlist and
+Time Bandit enforcement:
 
 ```bash
-/opt/egress-gateway/scripts/egress-mode.sh standard
+/opt/egress-gateway/scripts/timebandit-mode.sh standard
 ```
 
-Open mode switches CrabTrap to passthrough approval. Traffic is still audited,
-but policy does not block requests. Use it only temporarily for software
-installation or troubleshooting:
+Open mode allows public destinations temporarily while keeping Time Bandit,
+private-network defenses, and audit logging active:
 
 ```bash
-/opt/egress-gateway/scripts/egress-mode.sh open 30m
+/opt/egress-gateway/scripts/timebandit-mode.sh open 30m
 ```
 
 The optional duration is passed to `systemd-run --on-active`; examples include
@@ -78,31 +76,28 @@ The optional duration is passed to `systemd-run --on-active`; examples include
 mode. To opt out of auto-reset:
 
 ```bash
-/opt/egress-gateway/scripts/egress-mode.sh open none
+/opt/egress-gateway/scripts/timebandit-mode.sh open none
 ```
 
 Check the current mode:
 
 ```bash
-/opt/egress-gateway/scripts/egress-mode.sh status
+/opt/egress-gateway/scripts/timebandit-mode.sh status
 ```
 
-## Inspect Generated Units
+## Inspect Units
 
 ```bash
-systemctl cat egress-crabtrap.service
+systemctl cat egress-timebandit.service
 systemctl cat egress-unbound.service
-systemctl cat egress-postgres.service
 ```
 
-## Inspect Containers
+## Inspect Unbound Container
 
 ```bash
 podman ps
-podman logs egress-crabtrap
 podman logs egress-unbound
-podman logs egress-postgres
-podman inspect egress-crabtrap
+podman inspect egress-unbound
 ```
 
 ## Apply Gateway Firewall
@@ -115,3 +110,11 @@ install -m 0644 /opt/egress-gateway/firewall/nftables.conf /etc/nftables.conf
 systemctl enable --now nftables
 systemctl restart nftables
 ```
+
+## Known Limitation
+
+HTTPS requests through the proxy work through HTTP `CONNECT`.
+
+Plain HTTP absolute-form forward-proxy requests are not supported by the
+current Time Bandit listener and return `400 Bad Request`. Use HTTPS package
+repository URLs in restricted containers until upstream fixes that path.

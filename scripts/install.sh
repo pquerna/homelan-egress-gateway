@@ -15,40 +15,41 @@ apt-get install -y \
   git
 
 install -d /etc/containers/systemd
+install -d /etc/containers/systemd/disabled
 install -d -m 0700 /etc/egress-gateway
-install -d "$EGRESS_HOME/crabtrap/certs"
-
-if [[ -f /root/.env-openai-key ]]; then
-  install -m 0600 /root/.env-openai-key /etc/egress-gateway/crabtrap.env
-else
-  echo "missing /root/.env-openai-key; create /etc/egress-gateway/crabtrap.env with OPENAI_API_KEY before starting CrabTrap" >&2
-fi
-
-install -m 0644 "$EGRESS_HOME/crabtrap/config.yaml" \
-  /etc/egress-gateway/crabtrap-config.yaml
-
-install -m 0644 "$EGRESS_HOME/quadlet/egress-gateway.network" \
-  /etc/containers/systemd/egress-gateway.network
-
-install -m 0644 "$EGRESS_HOME/quadlet/egress-postgres.container" \
-  /etc/containers/systemd/egress-postgres.container
+install -d "$EGRESS_HOME/timebandit/log"
 
 install -m 0644 "$EGRESS_HOME/quadlet/egress-unbound.container" \
   /etc/containers/systemd/egress-unbound.container
 
-install -m 0644 "$EGRESS_HOME/quadlet/egress-crabtrap.container" \
-  /etc/containers/systemd/egress-crabtrap.container
+for old_unit in egress-crabtrap.container egress-postgres.container egress-gateway.network; do
+  if [[ -e "/etc/containers/systemd/${old_unit}" ]]; then
+    mv "/etc/containers/systemd/${old_unit}" "/etc/containers/systemd/disabled/${old_unit}"
+  fi
+done
+
+install -m 0644 "$EGRESS_HOME/systemd/egress-timebandit.service" \
+  /etc/systemd/system/egress-timebandit.service
+
+install -m 0644 "$EGRESS_HOME/timebandit/config.standard.yaml" \
+  "$EGRESS_HOME/timebandit/config.yaml"
+
+if [[ -x "$EGRESS_HOME/timebandit/bin/tbctl" ]]; then
+  "$EGRESS_HOME/timebandit/bin/tbctl" validate "$EGRESS_HOME/timebandit/config.yaml"
+else
+  echo "missing $EGRESS_HOME/timebandit/bin/tbctl; install Time Bandit binaries before running install.sh" >&2
+  exit 1
+fi
 
 "$EGRESS_HOME/scripts/build-images.sh"
 
+systemctl disable --now egress-crabtrap.service egress-postgres.service 2>/dev/null || true
 systemctl daemon-reload
 
-systemctl start egress-postgres.service
-systemctl start egress-unbound.service
-systemctl start egress-crabtrap.service
+systemctl enable --now egress-unbound.service
+systemctl enable --now egress-timebandit.service
 
-"$EGRESS_HOME/scripts/seed-crabtrap-policy.sh"
+printf 'standard\n' >/etc/egress-gateway/timebandit-mode
 
-systemctl --no-pager --full status egress-postgres.service
 systemctl --no-pager --full status egress-unbound.service
-systemctl --no-pager --full status egress-crabtrap.service
+systemctl --no-pager --full status egress-timebandit.service

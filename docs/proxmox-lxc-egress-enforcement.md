@@ -4,7 +4,7 @@ This guide shows how to restrict one Proxmox LXC so its only outbound network
 path is the local egress gateway:
 
 - DNS: `192.168.32.100:53/tcp+udp`
-- CrabTrap proxy: `192.168.32.100:8080/tcp`
+- Time Bandit proxy: `192.168.32.100:8080/tcp`
 
 The LXC proxy variables are convenience configuration. The Proxmox firewall is
 the enforcement boundary.
@@ -19,7 +19,6 @@ Gateway subnet:    192.168.32.0/20
 Example CTID:      100
 Example LXC IP:    192.168.32.150/20
 Example gateway:   192.168.32.1
-CrabTrap token:    gat_local_ct100_dev
 ```
 
 The restricted LXC should have a static IP. If the container uses DHCP, do not
@@ -57,13 +56,13 @@ IN ACCEPT -p tcp -source 192.168.32.0/20 -dport 22
 OUT ACCEPT -p udp -dest 192.168.32.100 -dport 53
 OUT ACCEPT -p tcp -dest 192.168.32.100 -dport 53
 
-# CrabTrap proxy only
+# Time Bandit proxy only
 OUT ACCEPT -p tcp -dest 192.168.32.100 -dport 8080
 EOF
 ```
 
 Do not add general outbound allow rules such as `OUT ACCEPT -p tcp -dport 443`.
-That would bypass CrabTrap.
+That would bypass the gateway proxy.
 
 The inbound SSH rule only lets LAN clients initiate SSH to the container.
 Proxmox firewalling is stateful, so SSH response packets are allowed as part of
@@ -98,15 +97,14 @@ If the guest uses `systemd-resolved`, configure DNS there instead of editing
 
 ## LXC Guest Global Proxy Environment
 
-CrabTrap requires Basic proxy authentication. The gateway-auth token is used as
-the proxy username with an empty password:
+Time Bandit does not require proxy Basic auth:
 
 ```bash
 cat >/etc/environment <<'EOF'
-HTTP_PROXY=http://gat_local_ct100_dev:@192.168.32.100:8080
-HTTPS_PROXY=http://gat_local_ct100_dev:@192.168.32.100:8080
-http_proxy=http://gat_local_ct100_dev:@192.168.32.100:8080
-https_proxy=http://gat_local_ct100_dev:@192.168.32.100:8080
+HTTP_PROXY=http://192.168.32.100:8080
+HTTPS_PROXY=http://192.168.32.100:8080
+http_proxy=http://192.168.32.100:8080
+https_proxy=http://192.168.32.100:8080
 NO_PROXY=localhost,127.0.0.1,::1,192.168.32.100
 no_proxy=localhost,127.0.0.1,::1,192.168.32.100
 EOF
@@ -118,10 +116,10 @@ Also install a shell profile file for POSIX shells:
 
 ```bash
 cat >/etc/profile.d/egress-proxy.sh <<'EOF'
-export HTTP_PROXY=http://gat_local_ct100_dev:@192.168.32.100:8080
-export HTTPS_PROXY=http://gat_local_ct100_dev:@192.168.32.100:8080
-export http_proxy=http://gat_local_ct100_dev:@192.168.32.100:8080
-export https_proxy=http://gat_local_ct100_dev:@192.168.32.100:8080
+export HTTP_PROXY=http://192.168.32.100:8080
+export HTTPS_PROXY=http://192.168.32.100:8080
+export http_proxy=http://192.168.32.100:8080
+export https_proxy=http://192.168.32.100:8080
 
 export NO_PROXY=localhost,127.0.0.1,::1,192.168.32.100
 export no_proxy=localhost,127.0.0.1,::1,192.168.32.100
@@ -129,8 +127,7 @@ EOF
 ```
 
 For systemd services inside the LXC, either set a manager-wide default
-environment or use service-specific drop-ins. Service-specific drop-ins are
-more explicit and safer when only some daemons should use the proxy.
+environment or use service-specific drop-ins.
 
 Manager-wide systemd default:
 
@@ -139,10 +136,10 @@ mkdir -p /etc/systemd/system.conf.d
 
 cat >/etc/systemd/system.conf.d/egress-proxy.conf <<'EOF'
 [Manager]
-DefaultEnvironment="HTTP_PROXY=http://gat_local_ct100_dev:@192.168.32.100:8080"
-DefaultEnvironment="HTTPS_PROXY=http://gat_local_ct100_dev:@192.168.32.100:8080"
-DefaultEnvironment="http_proxy=http://gat_local_ct100_dev:@192.168.32.100:8080"
-DefaultEnvironment="https_proxy=http://gat_local_ct100_dev:@192.168.32.100:8080"
+DefaultEnvironment="HTTP_PROXY=http://192.168.32.100:8080"
+DefaultEnvironment="HTTPS_PROXY=http://192.168.32.100:8080"
+DefaultEnvironment="http_proxy=http://192.168.32.100:8080"
+DefaultEnvironment="https_proxy=http://192.168.32.100:8080"
 DefaultEnvironment="NO_PROXY=localhost,127.0.0.1,::1,192.168.32.100"
 DefaultEnvironment="no_proxy=localhost,127.0.0.1,::1,192.168.32.100"
 EOF
@@ -157,8 +154,8 @@ mkdir -p /etc/systemd/system/example-agent.service.d
 
 cat >/etc/systemd/system/example-agent.service.d/proxy.conf <<'EOF'
 [Service]
-Environment="HTTP_PROXY=http://gat_local_ct100_dev:@192.168.32.100:8080"
-Environment="HTTPS_PROXY=http://gat_local_ct100_dev:@192.168.32.100:8080"
+Environment="HTTP_PROXY=http://192.168.32.100:8080"
+Environment="HTTPS_PROXY=http://192.168.32.100:8080"
 Environment="NO_PROXY=localhost,127.0.0.1,::1,192.168.32.100"
 EOF
 
@@ -169,20 +166,19 @@ systemctl restart example-agent.service
 Some tools keep their own proxy configuration. Set these when relevant:
 
 ```bash
-git config --system http.proxy  http://gat_local_ct100_dev:@192.168.32.100:8080
-git config --system https.proxy http://gat_local_ct100_dev:@192.168.32.100:8080
+git config --system http.proxy  http://192.168.32.100:8080
+git config --system https.proxy http://192.168.32.100:8080
 ```
 
 ```bash
-npm config set proxy http://gat_local_ct100_dev:@192.168.32.100:8080 --global
-npm config set https-proxy http://gat_local_ct100_dev:@192.168.32.100:8080 --global
+npm config set proxy http://192.168.32.100:8080 --global
+npm config set https-proxy http://192.168.32.100:8080 --global
 ```
 
 ```bash
-mkdir -p /etc/pip.conf.d
 cat >/etc/pip.conf <<'EOF'
 [global]
-proxy = http://gat_local_ct100_dev:@192.168.32.100:8080
+proxy = http://192.168.32.100:8080
 EOF
 ```
 
@@ -192,21 +188,19 @@ Codex can load additional environment variables from `~/.codex/.env`. Use this
 for Codex and its MCP subprocesses, because they may not inherit every shell or
 systemd environment setting.
 
-Create this for each user that runs Codex inside the restricted LXC:
-
 ```bash
 mkdir -p ~/.codex
 cat >~/.codex/.env <<'EOF'
-HTTP_PROXY=http://gat_local_ct100_dev:@192.168.32.100:8080
-HTTPS_PROXY=http://gat_local_ct100_dev:@192.168.32.100:8080
-http_proxy=http://gat_local_ct100_dev:@192.168.32.100:8080
-https_proxy=http://gat_local_ct100_dev:@192.168.32.100:8080
+HTTP_PROXY=http://192.168.32.100:8080
+HTTPS_PROXY=http://192.168.32.100:8080
+http_proxy=http://192.168.32.100:8080
+https_proxy=http://192.168.32.100:8080
 NO_PROXY=localhost,127.0.0.1,::1,192.168.32.100
 no_proxy=localhost,127.0.0.1,::1,192.168.32.100
 
 SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
-NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/crabtrap.crt
+NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/timebandit-egress.crt
 GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt
 EOF
 chmod 0600 ~/.codex/.env
@@ -217,27 +211,29 @@ gateway exposes an HTTP proxy only.
 
 ## APT Proxy
 
-Configure APT explicitly. This avoids relying on shell profile files:
+Configure APT explicitly. The current Time Bandit listener handles HTTPS proxy
+traffic via `CONNECT`, but does not yet handle plain HTTP absolute-form
+forward-proxy requests.
+
+Use HTTPS Debian sources:
+
+```text
+deb https://deb.debian.org/debian trixie main
+deb https://security.debian.org/debian-security trixie-security main
+```
+
+Then configure the HTTPS proxy:
 
 ```bash
 cat >/etc/apt/apt.conf.d/01egress-proxy <<'EOF'
-Acquire::http::Proxy "http://gat_local_ct100_dev:@192.168.32.100:8080";
-Acquire::https::Proxy "http://gat_local_ct100_dev:@192.168.32.100:8080";
+Acquire::https::Proxy "http://192.168.32.100:8080";
 EOF
 ```
 
-The current CrabTrap seed policy should allow normal Debian package reads after
-LLM inspection:
+## Install Time Bandit CA In The LXC
 
-```text
-http://deb.debian.org/debian
-http://security.debian.org
-```
-
-## Install CrabTrap CA In The LXC
-
-CrabTrap intercepts HTTPS and issues certificates from its local CA. HTTPS
-clients inside the LXC must trust that CA.
+Time Bandit intercepts HTTPS and issues certificates from the gateway local CA.
+HTTPS clients inside the LXC must trust that CA.
 
 The CA on the gateway is:
 
@@ -249,7 +245,7 @@ From the Proxmox host, after copying `ca.crt` there or mounting the gateway
 filesystem, inject it into CTID `100`:
 
 ```bash
-pct push 100 ca.crt /usr/local/share/ca-certificates/crabtrap.crt -perms 0644
+pct push 100 ca.crt /usr/local/share/ca-certificates/timebandit-egress.crt -perms 0644
 pct exec 100 -- update-ca-certificates
 ```
 
@@ -257,7 +253,7 @@ Alternatively, from inside the LXC, copy the CA file into place and update the
 trust store:
 
 ```bash
-install -m 0644 ca.crt /usr/local/share/ca-certificates/crabtrap.crt
+install -m 0644 ca.crt /usr/local/share/ca-certificates/timebandit-egress.crt
 update-ca-certificates
 ```
 
@@ -282,25 +278,17 @@ curl -I --connect-timeout 5 --noproxy '*' http://169.254.169.254/latest/meta-dat
 curl -I --connect-timeout 5 --noproxy '*' http://192.168.32.1
 ```
 
-Arbitrary browsing or exfiltration-shaped requests should return `403` through
-CrabTrap:
+Unapproved proxied destinations should return `403` through Time Bandit:
 
 ```bash
 curl -I --connect-timeout 10 https://example.com
-curl -I --connect-timeout 10 'https://api.github.com/?token=sk-test&path=/home/user/.ssh/id_ed25519'
 ```
 
-On the gateway, confirm decisions in CrabTrap logs:
+On the gateway, confirm decisions in Time Bandit logs:
 
 ```bash
-journalctl -u egress-crabtrap.service -f
-```
-
-And in the audit database:
-
-```bash
-podman exec egress-postgres psql -U crabtrap -d crabtrap \
-  -c "SELECT timestamp, user_id, method, url, decision, approved_by, response_status FROM audit_log ORDER BY timestamp DESC LIMIT 20;"
+journalctl -u egress-timebandit.service -f
+tail -f /opt/egress-gateway/timebandit/log/audit.jsonl
 ```
 
 ## Troubleshooting
@@ -309,13 +297,15 @@ If all outbound traffic works directly, the Proxmox firewall is not enforcing
 the CT boundary. Check `firewall=1` on the CT NIC, CT firewall `enable: 1`, and
 datacenter/node firewall enablement.
 
-If HTTPS through CrabTrap fails with a certificate error, install
-`crabtrap/certs/ca.crt` into the LXC trust store and run
-`update-ca-certificates`.
+If HTTPS through Time Bandit fails with a certificate error, install
+`crabtrap/certs/ca.crt` into the LXC trust store as
+`timebandit-egress.crt` and run `update-ca-certificates`.
 
-If CrabTrap returns `407`, the proxy URL is missing the gateway-auth token or
-the token does not match the seeded CrabTrap user.
+If a proxied HTTPS request returns `403`, the request reached Time Bandit and
+was denied by policy. Add the destination to
+`timebandit/config.standard.yaml`, run
+`/opt/egress-gateway/scripts/timebandit-mode.sh standard`, then retest.
 
-If CrabTrap returns `403`, the request reached CrabTrap and was denied by
-policy. Add the destination to `crabtrap/policy.seed.sql`, rerun
-`/opt/egress-gateway/scripts/seed-crabtrap-policy.sh`, then retest.
+If a proxied plain HTTP URL returns `400 Bad Request`, that is the current
+Time Bandit absolute-form HTTP limitation. Prefer HTTPS URLs until upstream
+supports that path.

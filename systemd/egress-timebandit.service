@@ -1,0 +1,21 @@
+[Unit]
+Description=Time Bandit Egress Proxy
+After=network-online.target egress-unbound.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/egress-gateway/timebandit/bin/timebanditd /opt/egress-gateway/timebandit/config.yaml
+Restart=always
+RestartSec=2s
+Environment=RUST_LOG=info
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/egress-gateway/timebandit /run/timebandit
+ReadOnlyPaths=/opt/egress-gateway/crabtrap/certs
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+

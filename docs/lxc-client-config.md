@@ -10,15 +10,14 @@ The proxy environment variables are convenience settings, not the boundary.
 
 ## Proxy Environment
 
-CrabTrap requires Basic proxy auth where the username is the gateway-auth token.
-The seeded default token is `gat_local_ct100_dev`.
+Time Bandit does not require proxy Basic auth.
 
 ```bash
 cat >/etc/profile.d/egress-proxy.sh <<'EOF'
-export HTTP_PROXY=http://gat_local_ct100_dev:@192.168.32.100:8080
-export HTTPS_PROXY=http://gat_local_ct100_dev:@192.168.32.100:8080
-export http_proxy=http://gat_local_ct100_dev:@192.168.32.100:8080
-export https_proxy=http://gat_local_ct100_dev:@192.168.32.100:8080
+export HTTP_PROXY=http://192.168.32.100:8080
+export HTTPS_PROXY=http://192.168.32.100:8080
+export http_proxy=http://192.168.32.100:8080
+export https_proxy=http://192.168.32.100:8080
 
 export NO_PROXY=localhost,127.0.0.1,::1,192.168.32.100
 export no_proxy=localhost,127.0.0.1,::1,192.168.32.100
@@ -36,16 +35,16 @@ that runs Codex:
 ```bash
 mkdir -p ~/.codex
 cat >~/.codex/.env <<'EOF'
-HTTP_PROXY=http://gat_local_ct100_dev:@192.168.32.100:8080
-HTTPS_PROXY=http://gat_local_ct100_dev:@192.168.32.100:8080
-http_proxy=http://gat_local_ct100_dev:@192.168.32.100:8080
-https_proxy=http://gat_local_ct100_dev:@192.168.32.100:8080
+HTTP_PROXY=http://192.168.32.100:8080
+HTTPS_PROXY=http://192.168.32.100:8080
+http_proxy=http://192.168.32.100:8080
+https_proxy=http://192.168.32.100:8080
 NO_PROXY=localhost,127.0.0.1,::1,192.168.32.100
 no_proxy=localhost,127.0.0.1,::1,192.168.32.100
 
 SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
-NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/crabtrap.crt
+NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/timebandit-egress.crt
 GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt
 EOF
 chmod 0600 ~/.codex/.env
@@ -56,11 +55,21 @@ gateway exposes an HTTP proxy only.
 
 ## APT Proxy
 
+Time Bandit currently handles HTTPS proxy traffic through HTTP `CONNECT`. It
+does not yet handle plain HTTP absolute-form forward-proxy requests on the same
+listener. Use HTTPS Debian sources and configure only the HTTPS APT proxy path:
+
 ```bash
 cat >/etc/apt/apt.conf.d/01egress-proxy <<'EOF'
-Acquire::http::Proxy "http://gat_local_ct100_dev:@192.168.32.100:8080";
-Acquire::https::Proxy "http://gat_local_ct100_dev:@192.168.32.100:8080";
+Acquire::https::Proxy "http://192.168.32.100:8080";
 EOF
+```
+
+Example Debian sources should use `https://`:
+
+```text
+deb https://deb.debian.org/debian trixie main
+deb https://security.debian.org/debian-security trixie-security main
 ```
 
 ## DNS
@@ -75,13 +84,13 @@ EOF
 If the LXC uses `systemd-resolved`, configure the resolver there instead of
 directly editing `/etc/resolv.conf`.
 
-## CrabTrap CA
+## Time Bandit CA
 
-CrabTrap terminates HTTPS and generates certificates from its local CA. Copy the
-gateway CA into the LXC trust store after the CrabTrap service has started:
+Time Bandit intercepts HTTPS and issues certificates from the gateway local CA.
+Copy the gateway CA into the LXC trust store:
 
 ```bash
-install -m 0644 ca.crt /usr/local/share/ca-certificates/crabtrap.crt
+install -m 0644 ca.crt /usr/local/share/ca-certificates/timebandit-egress.crt
 update-ca-certificates
 ```
 
@@ -90,6 +99,10 @@ The gateway-side CA path is:
 ```text
 /opt/egress-gateway/crabtrap/certs/ca.crt
 ```
+
+The path still contains `crabtrap` because the CA was originally generated
+during the CrabTrap deployment and is intentionally reused to avoid rotating
+client trust.
 
 ## Validation
 
