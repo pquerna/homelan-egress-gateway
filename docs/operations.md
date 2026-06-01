@@ -120,3 +120,11 @@ Time Bandit runs a combined single-port explicit proxy on
 - `HTTP_PROXY` clients use absolute-form cleartext forwarding.
 - Both paths run through the same entitlement, SSRF floor, detection, and audit
   pipeline.
+
+## Codex WebSocket Streams
+
+Standard mode includes a route override for `chatgpt.com` and `ab.chatgpt.com`.
+Those destinations stay allowlisted by entitlement, but body inspection is
+limited to a 1-byte `windowed_prefix` so Codex WebSocket streams are not closed
+by the deterministic high-entropy detector. Other OpenAI API hosts, including
+`api.openai.com`, keep the normal full-buffer body inspection policy.

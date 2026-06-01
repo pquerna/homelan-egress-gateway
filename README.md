@@ -127,6 +127,12 @@ destinations:
 Unapproved public destinations are denied. Private, loopback, link-local, and
 metadata destinations remain blocked by Time Bandit and by the LXC firewall.
 
+Codex/ChatGPT frontend hosts (`chatgpt.com`, `ab.chatgpt.com`) have a scoped
+route override that keeps the destination allowlist enforced but limits body
+inspection to a 1-byte prefix. This avoids false positives from compressed
+WebSocket/model streams while keeping full body inspection on other allowed
+destinations such as `api.openai.com`.
+
 ## Egress Modes
 
 ```bash

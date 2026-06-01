@@ -43,6 +43,18 @@ listeners:
     accept_absolute_form: true
     tls:
       mitm: mitm
+    routes:
+      # Codex/ChatGPT WebSocket streams carry compressed/model data that currently
+      # trips Time Bandit's deterministic high-entropy detector. Keep these hosts
+      # explicitly allowlisted by entitlement, but only inspect a 1-byte prefix so
+      # the long-lived stream is not terminated mid-session.
+      - name: codex-chatgpt-streams
+        match:
+          - chatgpt.com
+          - ab.chatgpt.com
+        policy:
+          body_mode: windowed_prefix
+          body_cap_bytes: 1
 
 entitlement:
   rules:
