@@ -55,22 +55,17 @@ gateway exposes an HTTP proxy only.
 
 ## APT Proxy
 
-Time Bandit currently handles HTTPS proxy traffic through HTTP `CONNECT`. It
-does not yet handle plain HTTP absolute-form forward-proxy requests on the same
-listener. Use HTTPS Debian sources and configure only the HTTPS APT proxy path:
+Time Bandit accepts both HTTP absolute-form requests and HTTPS `CONNECT` on the
+same listener. Configure both APT proxy paths:
 
 ```bash
 cat >/etc/apt/apt.conf.d/01egress-proxy <<'EOF'
+Acquire::http::Proxy "http://192.168.32.100:8080";
 Acquire::https::Proxy "http://192.168.32.100:8080";
 EOF
 ```
 
-Example Debian sources should use `https://`:
-
-```text
-deb https://deb.debian.org/debian trixie main
-deb https://security.debian.org/debian-security trixie-security main
-```
+HTTP and HTTPS Debian sources are both supported through the proxy.
 
 ## DNS
 

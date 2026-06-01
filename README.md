@@ -36,19 +36,19 @@ The service reuses the existing local CA files at:
 
 Do not copy `ca.key` into client containers.
 
-## HTTPS Proxy Limitation
+## Combined Proxy Listener
 
-Time Bandit currently handles HTTPS proxy traffic through plain HTTP `CONNECT`
-on `192.168.32.100:8080`.
+Time Bandit runs as a combined explicit proxy on `192.168.32.100:8080`.
+Restricted clients can use the same proxy URL for both variables:
 
-It does not currently handle plain HTTP absolute-form forward-proxy requests on
-that listener. In practice:
+```bash
+HTTP_PROXY=http://192.168.32.100:8080
+HTTPS_PROXY=http://192.168.32.100:8080
+```
 
-- `https://...` through the proxy works.
-- `http://...` through the proxy currently returns `400 Bad Request`.
-
-Until upstream supports that path, use HTTPS package repository URLs inside
-restricted containers.
+`HTTPS_PROXY` traffic uses HTTP `CONNECT` and forged-cert MITM. `HTTP_PROXY`
+traffic uses absolute-form cleartext forwarding. Both paths run through the
+same destination entitlement and detection policy.
 
 ## Layout
 

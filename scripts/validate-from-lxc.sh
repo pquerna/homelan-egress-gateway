@@ -44,6 +44,9 @@ check_should_fail "direct HTTPS blocked" \
 check_should_pass "proxy to Debian allowed" \
   curl -I --connect-timeout 10 --proxy "${PROXY_URL}" https://deb.debian.org
 
+check_should_pass "proxy to Debian HTTP allowed" \
+  curl -I --connect-timeout 10 --proxy "${PROXY_URL}" http://deb.debian.org/debian/
+
 check_should_fail "proxy to unapproved HTTPS denied" \
   curl -I --connect-timeout 10 --proxy "${PROXY_URL}" https://example.com
 

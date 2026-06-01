@@ -16,75 +16,45 @@ policy:
   body_mode: full_buffer
   body_cap_bytes: 1048576
 
-upstream:
-  version: http1
+destinations:
+  debian:
+    - deb.debian.org
+    - security.debian.org
+  javascript:
+    - registry.npmjs.org
+  python:
+    - pypi.org
+    - files.pythonhosted.org
+  github:
+    - github.com
+    - api.github.com
+    - "*.githubusercontent.com"
+  openai:
+    - api.openai.com
+    - auth.openai.com
+    - chatgpt.com
+    - ab.chatgpt.com
 
 listeners:
   - name: http-explicit
     bind: "192.168.32.100:8080"
     mode: explicit
     plane: http
+    accept_absolute_form: true
     tls:
       mitm: mitm
-    routes:
-      - name: debian-main
-        match_host: "deb.debian.org"
-        policy: { default_verdict: ALLOW }
-      - name: debian-security
-        match_host: "security.debian.org"
-        policy: { default_verdict: ALLOW }
-      - name: npm
-        match_host: "registry.npmjs.org"
-        policy: { default_verdict: ALLOW }
-      - name: pypi
-        match_host: "pypi.org"
-        policy: { default_verdict: ALLOW }
-      - name: pythonhosted
-        match_host: "files.pythonhosted.org"
-        policy: { default_verdict: ALLOW }
-      - name: github
-        match_host: "github.com"
-        policy: { default_verdict: ALLOW }
-      - name: github-api
-        match_host: "api.github.com"
-        policy: { default_verdict: ALLOW }
-      - name: github-raw
-        match_host: "raw.githubusercontent.com"
-        policy: { default_verdict: ALLOW }
-      - name: github-objects
-        match_host: "objects.githubusercontent.com"
-        policy: { default_verdict: ALLOW }
-      - name: githubusercontent
-        match_host: "*.githubusercontent.com"
-        policy: { default_verdict: ALLOW }
-      - name: openai-api
-        match_host: "api.openai.com"
-        policy: { default_verdict: ALLOW }
-      - name: openai-auth
-        match_host: "auth.openai.com"
-        policy: { default_verdict: ALLOW }
-      - name: chatgpt
-        match_host: "chatgpt.com"
-        policy: { default_verdict: ALLOW }
 
 entitlement:
   rules:
     - name: lan-restricted-containers
+      min_attribution: packet_only
       posture: deny
-      allowed_destinations:
-        - deb.debian.org
-        - security.debian.org
-        - registry.npmjs.org
-        - pypi.org
-        - files.pythonhosted.org
-        - github.com
-        - api.github.com
-        - raw.githubusercontent.com
-        - objects.githubusercontent.com
-        - "*.githubusercontent.com"
-        - api.openai.com
-        - auth.openai.com
-        - chatgpt.com
+      allow:
+        - debian
+        - javascript
+        - python
+        - github
+        - openai
 
 storage_sinks:
   - id: local-jsonl

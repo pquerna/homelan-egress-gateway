@@ -111,10 +111,12 @@ systemctl enable --now nftables
 systemctl restart nftables
 ```
 
-## Known Limitation
+## Proxy Listener
 
-HTTPS requests through the proxy work through HTTP `CONNECT`.
+Time Bandit runs a combined single-port explicit proxy on
+`192.168.32.100:8080`.
 
-Plain HTTP absolute-form forward-proxy requests are not supported by the
-current Time Bandit listener and return `400 Bad Request`. Use HTTPS package
-repository URLs in restricted containers until upstream fixes that path.
+- `HTTPS_PROXY` clients use HTTP `CONNECT` and forged-cert MITM.
+- `HTTP_PROXY` clients use absolute-form cleartext forwarding.
+- Both paths run through the same entitlement, SSRF floor, detection, and audit
+  pipeline.

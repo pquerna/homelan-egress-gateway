@@ -211,21 +211,12 @@ gateway exposes an HTTP proxy only.
 
 ## APT Proxy
 
-Configure APT explicitly. The current Time Bandit listener handles HTTPS proxy
-traffic via `CONNECT`, but does not yet handle plain HTTP absolute-form
-forward-proxy requests.
-
-Use HTTPS Debian sources:
-
-```text
-deb https://deb.debian.org/debian trixie main
-deb https://security.debian.org/debian-security trixie-security main
-```
-
-Then configure the HTTPS proxy:
+Configure APT explicitly. Time Bandit accepts both HTTP absolute-form requests
+and HTTPS `CONNECT` on the same listener:
 
 ```bash
 cat >/etc/apt/apt.conf.d/01egress-proxy <<'EOF'
+Acquire::http::Proxy "http://192.168.32.100:8080";
 Acquire::https::Proxy "http://192.168.32.100:8080";
 EOF
 ```
@@ -305,7 +296,3 @@ If a proxied HTTPS request returns `403`, the request reached Time Bandit and
 was denied by policy. Add the destination to
 `timebandit/config.standard.yaml`, run
 `/opt/egress-gateway/scripts/timebandit-mode.sh standard`, then retest.
-
-If a proxied plain HTTP URL returns `400 Bad Request`, that is the current
-Time Bandit absolute-form HTTP limitation. Prefer HTTPS URLs until upstream
-supports that path.
