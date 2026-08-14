@@ -18,11 +18,23 @@ export HTTP_PROXY=http://192.168.32.100:8080
 export HTTPS_PROXY=http://192.168.32.100:8080
 export http_proxy=http://192.168.32.100:8080
 export https_proxy=http://192.168.32.100:8080
+export UV_SYSTEM_CERTS=true
+export NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+export ELECTRON_GET_USE_PROXY=1
 
 export NO_PROXY=localhost,127.0.0.1,::1,192.168.32.100
 export no_proxy=localhost,127.0.0.1,::1,192.168.32.100
 EOF
 ```
+
+uv uses bundled Mozilla roots by default, which do not include the gateway CA.
+`UV_SYSTEM_CERTS=true` selects the native certificate store and remains
+effective when an installer disables uv configuration discovery with
+`UV_NO_CONFIG=1`.
+
+For Node-based installers, `NODE_EXTRA_CA_CERTS` supplies the same trust bundle.
+Electron's downloader requires `ELECTRON_GET_USE_PROXY=1` before it will use
+the configured proxy.
 
 For systemd services inside the LXC, create service-specific drop-ins because
 `/etc/profile.d` does not affect systemd daemons.

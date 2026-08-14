@@ -106,6 +106,9 @@ HTTPS_PROXY=http://192.168.32.100:8080
 http_proxy=http://192.168.32.100:8080
 https_proxy=http://192.168.32.100:8080
 NO_PROXY=localhost,127.0.0.1,::1,192.168.32.100
+UV_SYSTEM_CERTS=true
+NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+ELECTRON_GET_USE_PROXY=1
 no_proxy=localhost,127.0.0.1,::1,192.168.32.100
 EOF
 ```
@@ -120,11 +123,24 @@ export HTTP_PROXY=http://192.168.32.100:8080
 export HTTPS_PROXY=http://192.168.32.100:8080
 export http_proxy=http://192.168.32.100:8080
 export https_proxy=http://192.168.32.100:8080
+export UV_SYSTEM_CERTS=true
+export NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+export ELECTRON_GET_USE_PROXY=1
 
 export NO_PROXY=localhost,127.0.0.1,::1,192.168.32.100
 export no_proxy=localhost,127.0.0.1,::1,192.168.32.100
 EOF
 ```
+
+`UV_SYSTEM_CERTS=true` makes uv use the guest's native certificate store. This
+is required for HTTPS inspection because uv otherwise uses bundled Mozilla
+roots and will reject the gateway's locally installed CA. Keep the environment
+variable rather than relying only on `/etc/uv/uv.toml`: third-party installers
+may invoke uv with `UV_NO_CONFIG=1`.
+
+`NODE_EXTRA_CA_CERTS` gives Node subprocesses the same local trust, while
+`ELECTRON_GET_USE_PROXY=1` makes Electron's artifact downloader honor the proxy
+instead of attempting a direct connection.
 
 For systemd services inside the LXC, either set a manager-wide default
 environment or use service-specific drop-ins.
