@@ -61,6 +61,11 @@ The active configuration is default-deny. It allows the configured Debian,
 npm, PyPI, GitHub, OpenAI, model-target, and local LLM API destinations.
 Unknown destinations receive `403`.
 
+Port `8080` is CONNECT-only. Plain HTTP absolute-form proxy requests are
+rejected with `400`; guarded clients must use HTTPS origin URLs. In particular,
+install `guarded-host/debian.sources` at
+`/etc/apt/sources.list.d/debian.sources` before running APT.
+
 The guarded host also enforces this socket boundary in `/etc/nftables.conf`:
 The tracked source is `firewall/guarded-host.nft`.
 
