@@ -67,10 +67,10 @@ policy remain globally enforced. Time Bandit's SSRF floor also remains active:
 private, loopback, link-local, reserved, and cloud-metadata destinations are
 still blocked.
 
-Port `8080` is CONNECT-only. Plain HTTP absolute-form proxy requests are
-rejected with `400`; guarded clients must use HTTPS origin URLs. In particular,
-install `guarded-host/debian.sources` at
-`/etc/apt/sources.list.d/debian.sources` before running APT.
+Port `8080` is a combined explicit proxy. HTTPS origins use `CONNECT` with
+forged-certificate inspection; plain HTTP origins use absolute-form requests on
+the same listener. Both shapes pass through the shared SSRF, policy, inspection,
+audit, and hop-by-hop credential-stripping pipeline.
 
 Decrypted HTTP/2 origin responses use a size-aware relay: small finite bodies
 retain pre-head inspection, while large, realtime, and unknown-length bodies
@@ -215,6 +215,9 @@ systemctl is-active \
 # Expected: 200, with a would-be-DENY audit record
 curl -o /dev/null -w '%{http_code}\n' https://example.com
 journalctl -u egress-timebandit.service --grep example.com
+
+# Expected: 200 through the absolute-form HTTP leg
+curl -o /dev/null -w '%{http_code}\n' http://example.com
 
 # Expected: 401
 curl -o /dev/null -w '%{http_code}\n' \
