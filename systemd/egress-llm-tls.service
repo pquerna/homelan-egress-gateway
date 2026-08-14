@@ -1,0 +1,19 @@
+[Unit]
+Description=TLS frontend for the Time Bandit LLM API
+After=network-online.target egress-timebandit.service
+Wants=network-online.target
+Requires=egress-timebandit.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/socat OPENSSL-LISTEN:8181,bind=192.168.32.100,reuseaddr,fork,cert=/opt/egress-gateway/llm-tls/server.crt,key=/opt/egress-gateway/llm-tls/server.key,verify=0 TCP:127.0.0.1:8182
+Restart=always
+RestartSec=2s
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadOnlyPaths=/opt/egress-gateway/llm-tls
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

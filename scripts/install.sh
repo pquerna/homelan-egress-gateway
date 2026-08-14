@@ -12,12 +12,13 @@ apt-get install -y \
   jq \
   ca-certificates \
   dnsutils \
-  git
+  git \
+  socat
 
 install -d /etc/containers/systemd
 install -d /etc/containers/systemd/disabled
 install -d -m 0700 /etc/egress-gateway
-install -d "$EGRESS_HOME/timebandit/log"
+install -d "$EGRESS_HOME/timebandit/bin"
 
 install -m 0644 "$EGRESS_HOME/quadlet/egress-unbound.container" \
   /etc/containers/systemd/egress-unbound.container
@@ -30,26 +31,34 @@ done
 
 install -m 0644 "$EGRESS_HOME/systemd/egress-timebandit.service" \
   /etc/systemd/system/egress-timebandit.service
+install -m 0644 "$EGRESS_HOME/systemd/egress-llm-tls.service" \
+  /etc/systemd/system/egress-llm-tls.service
 
-install -m 0644 "$EGRESS_HOME/timebandit/config.standard.yaml" \
-  "$EGRESS_HOME/timebandit/config.yaml"
-
-if [[ -x "$EGRESS_HOME/timebandit/bin/tbctl" ]]; then
-  "$EGRESS_HOME/timebandit/bin/tbctl" validate "$EGRESS_HOME/timebandit/config.yaml"
-else
-  echo "missing $EGRESS_HOME/timebandit/bin/tbctl; install Time Bandit binaries before running install.sh" >&2
+if [[ ! -x "$EGRESS_HOME/timebandit/bin/tb" ]]; then
+  echo "missing $EGRESS_HOME/timebandit/bin/tb; install a gateway-enabled Time Bandit build first" >&2
   exit 1
 fi
+if [[ ! -s /etc/egress-gateway/timebandit.env ]]; then
+  echo "missing /etc/egress-gateway/timebandit.env; provision the three bearer-token variables first" >&2
+  exit 1
+fi
+chmod 0600 /etc/egress-gateway/timebandit.env
+"$EGRESS_HOME/timebandit/bin/tb" validate "$EGRESS_HOME/timebandit/config.llm.yaml"
+"$EGRESS_HOME/scripts/generate-llm-tls.sh"
+
+systemctl stop egress-crabtrap.service egress-postgres.service egress-unbound.service \
+  2>/dev/null || true
+podman network rm systemd-egress-gateway 2>/dev/null || true
+nft delete table inet netavark 2>/dev/null || true
 
 "$EGRESS_HOME/scripts/build-images.sh"
 
-systemctl disable --now egress-crabtrap.service egress-postgres.service 2>/dev/null || true
 systemctl daemon-reload
-
-systemctl enable --now egress-unbound.service
-systemctl enable --now egress-timebandit.service
-
-printf 'standard\n' >/etc/egress-gateway/timebandit-mode
+systemctl enable egress-unbound.service egress-timebandit.service egress-llm-tls.service
+systemctl restart egress-unbound.service
+systemctl restart egress-timebandit.service
+systemctl restart egress-llm-tls.service
 
 systemctl --no-pager --full status egress-unbound.service
 systemctl --no-pager --full status egress-timebandit.service
+systemctl --no-pager --full status egress-llm-tls.service

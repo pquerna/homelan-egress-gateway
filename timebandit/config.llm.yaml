@@ -1,0 +1,159 @@
+version: 1
+
+mode: enforce
+
+# These model targets are on the trusted management LAN. Policy still
+# deny-by-defaults every host, credential, and posture below.
+dev:
+  allow_private_destinations: true
+upstream:
+  ca_bundle: /opt/egress-gateway/llm-tls/upstream-ca-bundle.crt
+ca:
+  cert_path: /opt/egress-gateway/crabtrap/certs/ca.crt
+  key_path: /opt/egress-gateway/crabtrap/certs/ca.key
+
+defaults:
+  verdict: deny
+  on_error: deny
+
+destinations:
+  debian: [deb.debian.org, security.debian.org]
+  javascript: [registry.npmjs.org]
+  python: [pypi.org, files.pythonhosted.org]
+  github: [github.com, api.github.com, "*.githubusercontent.com"]
+  openai: [api.openai.com, auth.openai.com, chatgpt.com, ab.chatgpt.com]
+  vllm-provider: [vllm.spark.home.arpa]
+  vllm-target: ["vllm.spark.home.arpa:8000"]
+  omp-provider: [omp-gateway.spark.home.arpa]
+  omp-target: ["omp-gateway.spark.home.arpa:4001"]
+  gateway-api: [llm-gateway.spark.home.arpa]
+
+postures:
+  standard-egress:
+    inspect: [secrets]
+    on: { consider: allow }
+  llm-gateway:
+    inspect: [secrets]
+    on: { consider: allow }
+
+policy:
+  - allow: { name: debian-egress, to: { host: [debian] }, posture: standard-egress }
+  - allow: { name: javascript-egress, to: { host: [javascript] }, posture: standard-egress }
+  - allow: { name: python-egress, to: { host: [python] }, posture: standard-egress }
+  - allow: { name: github-egress, to: { host: [github] }, posture: standard-egress }
+  - allow: { name: openai-egress, to: { host: [openai] }, posture: standard-egress }
+  - allow:
+      name: local-vllm-model
+      to: { host: [vllm-provider] }
+      inject: vllm-local
+      posture: llm-gateway
+  - allow:
+      name: local-omp-model
+      to: { host: [omp-provider] }
+      inject: omp-local
+      posture: llm-gateway
+  - allow:
+      name: local-llm-api
+      to: { host: [gateway-api] }
+      posture: llm-gateway
+
+listeners:
+  - name: http-explicit
+    bind: "192.168.32.100:8080"
+    proxy: explicit
+    protocol: http
+    tls:
+      inspect: decrypt
+storage_sinks:
+  - id: stdout-audit
+    kind: stdout
+
+admin:
+  http_addr: "127.0.0.1:9901"
+
+credentials:
+  llm-client:
+    apply: { header: Authorization, scheme: Bearer }
+    source: { env: TB_LLM_CLIENT_TOKEN }
+  vllm-local:
+    apply: { header: Authorization, scheme: Bearer }
+    source: { env: VLLM_LOCAL_TOKEN }
+  omp-local:
+    apply: { header: Authorization, scheme: Bearer }
+    source: { env: OMP_LOCAL_TOKEN }
+
+llm:
+  listeners:
+    lan:
+      bind: "127.0.0.1:8182"
+      credential_recipes: [llm-client]
+      max_body_bytes: 4194304
+
+  targets:
+    fast:
+      provider_profile: vllm_openai_chat_v1
+      scheme: http
+      format: openai_chat
+      model: deepseek-ai/DeepSeek-V4-Flash-0731
+      reasoning_effort: none
+      pricing: { input: 0.0, output: 0.0 }
+      context_length: 1048576
+      destination: vllm-target
+      credential_recipe: vllm-local
+      capabilities:
+        supports_tools: true
+        supports_reasoning_effort: true
+        supports_json_schema_response_format: true
+        supports_parallel_tool_calls: true
+        openai_compatible: true
+
+    smart:
+      provider_profile: omp_auth_gateway_responses_v1
+      format: openai_responses
+      scheme: http
+      model: openai-codex/gpt-5.6-sol
+      reasoning_effort: xhigh
+      context_length: 272000
+      destination: omp-target
+      credential_recipe: omp-local
+      capabilities:
+        supports_tools: true
+        supports_reasoning_effort: true
+        supports_json_schema_response_format: true
+        supports_parallel_tool_calls: true
+        openai_compatible: true
+
+  routes:
+    agent-default:
+      accept: [openai_chat, openai_responses, anthropic_messages]
+      max_attempts: 4
+      route_deadline_ms: 300000
+      translation:
+        unknown_fields: drop_with_warning
+        lossy_conversions: allow_with_diagnostics
+      algorithm:
+        type: stage_router
+        efficient: fast
+        capable: smart
+        mode: efficient_first
+        confidence_threshold: 0.5
+        recent_window: 3
+        judge:
+          target: fast
+          base_threshold: 0.6
+          threshold_step: 0.15
+          recent_turn_window: 12
+          max_output_tokens: 512
+        handoff_notes:
+          escalation_note: >-
+            The previous turns on the fast model did not converge. Re-read the
+            task from scratch and solve it directly.
+
+    fast:
+      accept: [openai_chat, openai_responses, anthropic_messages]
+      algorithm: { type: passthrough, target: fast }
+
+    smart:
+      accept: [openai_chat, openai_responses, anthropic_messages]
+      route_deadline_ms: 300000
+      algorithm: { type: passthrough, target: smart }

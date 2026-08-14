@@ -1,19 +1,21 @@
 [Unit]
-Description=Time Bandit Egress Proxy
-After=network-online.target egress-unbound.service
+Description=Time Bandit Egress and LLM Gateway
+After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/opt/egress-gateway/timebandit/bin/timebanditd /opt/egress-gateway/timebandit/config.yaml
+ExecStart=/opt/egress-gateway/timebandit/bin/tb gateway /opt/egress-gateway/timebandit/config.llm.yaml
 Restart=always
 RestartSec=2s
+EnvironmentFile=/etc/egress-gateway/timebandit.env
+RuntimeDirectory=timebandit
 Environment=RUST_LOG=info
 
 NoNewPrivileges=true
 ProtectSystem=strict
 ReadWritePaths=/opt/egress-gateway/timebandit /run/timebandit
-ReadOnlyPaths=/opt/egress-gateway/crabtrap/certs
+ReadOnlyPaths=/opt/egress-gateway/crabtrap/certs /etc/egress-gateway/timebandit.env
 PrivateTmp=true
 
 [Install]

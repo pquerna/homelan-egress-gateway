@@ -1,66 +1,105 @@
-# Minimal Local Time Bandit Egress Gateway
+# Home LAN Time Bandit Egress and LLM Gateway
 
-This project implements the local egress gateway described in the original
-CrabTrap RFC, adjusted for this LAN and the current proxy implementation:
+This repository deploys the gateway used by the guarded host
+`192.168.32.200` and the two DGX Spark model tiers.
 
-- Gateway LAN IP: `192.168.32.100`
-- LAN subnet: `192.168.32.0/20`
-- DNS service exposed to LAN: `192.168.32.100:53/tcp+udp`
-- Time Bandit proxy exposed to LAN: `192.168.32.100:8080/tcp`
+## Endpoints
 
-The security boundary is still the LXC firewall. Restricted containers must
-only be able to open outbound sockets to `192.168.32.100:53` and
-`192.168.32.100:8080`.
+| Service | Address | Purpose |
+|---|---|---|
+| Unbound | `192.168.32.100:53/tcp+udp` | Guarded DNS resolver and local `spark.home.arpa` records |
+| Time Bandit explicit proxy | `192.168.32.100:8080` | Default-deny HTTPS `CONNECT` egress |
+| LLM API TLS frontend | `https://llm-gateway.spark.home.arpa:8181/v1` | Authenticated OpenAI/Anthropic-compatible model API |
+| Time Bandit LLM listener | `127.0.0.1:8182` | Loopback-only API behind the TLS frontend |
+| Time Bandit admin HTTP | `127.0.0.1:9901` | Read-only local administration |
 
-## Current Proxy Reality
+The LLM API routes to:
 
-The gateway now runs Time Bandit as the egress proxy instead of CrabTrap.
-Unbound still provides DNS.
+- Fast: DeepSeek V4 Flash at `vllm.spark.home.arpa:8000`
+- Smart: GPT-5.6 Sol through the authenticated OMP gateway at
+  `omp-gateway.spark.home.arpa:4001`
 
-Time Bandit is installed as a host systemd service:
+The two model links use HTTP on the trusted management LAN. They still pass
+through Time Bandit's resolve-then-pin SSRF guard, exact provider profiles,
+credential vending, body inspection, route deadlines, and causal audit.
 
-- Unit: `egress-timebandit.service`
-- Runtime config: `/opt/egress-gateway/timebandit/config.yaml`
-- Standard config: `/opt/egress-gateway/timebandit/config.standard.yaml`
-- Temporary open config: `/opt/egress-gateway/timebandit/config.open.yaml`
-- Audit log: `/opt/egress-gateway/timebandit/log/audit.jsonl`
-- Admin HTTP: `127.0.0.1:9901`
-- Admin socket: `/run/timebandit/admin.sock`
+## LLM routes
 
-The service reuses the existing local CA files at:
+The API requires `Authorization: Bearer <TB_LLM_CLIENT_TOKEN>` and accepts
+OpenAI Chat Completions, OpenAI Responses, and Anthropic Messages requests.
 
-```text
-/opt/egress-gateway/crabtrap/certs/ca.crt
-/opt/egress-gateway/crabtrap/certs/ca.key
-```
+| Model id | Behavior |
+|---|---|
+| `agent-default` | Stage router: DeepSeek classifies and serves routine work; GPT-5.6 Sol serves capability-bound work |
+| `fast` | Direct DeepSeek V4 Flash passthrough |
+| `smart` | Direct GPT-5.6 Sol passthrough through the OMP auth gateway |
 
-Do not copy `ca.key` into client containers.
+The DeepSeek target pins `reasoning_effort: none`. This disables model thinking
+for the classifier, keeping its structured verdict inside the 512-token judge
+budget. The smart target pins `xhigh`.
 
-## Combined Proxy Listener
-
-Time Bandit runs as a combined explicit proxy on `192.168.32.100:8080`.
-Restricted clients can use the same proxy URL for both variables:
+Example:
 
 ```bash
-HTTP_PROXY=http://192.168.32.100:8080
-HTTPS_PROXY=http://192.168.32.100:8080
+TOKEN="$(cat ~/.config/timebandit/client.token)"
+
+curl -sS https://llm-gateway.spark.home.arpa:8181/v1/chat/completions \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "agent-default",
+    "messages": [{"role": "user", "content": "What is 2 + 2?"}]
+  }'
 ```
 
-`HTTPS_PROXY` traffic uses HTTP `CONNECT` and forged-cert MITM. `HTTP_PROXY`
-traffic uses absolute-form cleartext forwarding. Both paths run through the
-same destination entitlement and detection policy.
+On a guarded client, `HTTPS_PROXY=http://192.168.32.100:8080` carries that
+request through the only permitted egress socket.
 
-## Layout
+## Egress policy
+
+The active configuration is default-deny. It allows the configured Debian,
+npm, PyPI, GitHub, OpenAI, model-target, and local LLM API destinations.
+Unknown destinations receive `403`.
+
+The guarded host also enforces this socket boundary in `/etc/nftables.conf`:
+The tracked source is `firewall/guarded-host.nft`.
+
+- DNS only to `192.168.32.100:53/tcp+udp`
+- TCP only to `192.168.32.100:8080`
+- loopback and established connections
+- all other outbound connections dropped
+
+The in-guest nftables rule is active protection. Proxmox firewalling should
+mirror the same allowlist as an outer boundary that guest root cannot change.
+
+## Security boundary
+
+- The LLM listener rejects unauthenticated requests.
+- `/etc/egress-gateway/timebandit.env` is root-owned mode `0600`; credentials
+  are not stored in this repository.
+- Time Bandit injects target credentials only after policy and route selection.
+- Private model destinations require the explicit
+  `dev.allow_private_destinations: true` deployment opt-in.
+- Only `vllm_openai_chat_v1` and `omp_auth_gateway_responses_v1` permit
+  `scheme: http`; public-provider profiles still require verified TLS/H2.
+- HTTP model connections are resolve-then-pinned, non-redirecting, and
+  non-pooled.
+- The LLM TLS leaf is signed by the existing gateway CA. The upstream trust
+  bundle contains both Debian system roots and that local CA.
+- Audit records go to the system journal and contain routing metadata, not
+  prompts, provider bodies, or bearer values.
+
+## Runtime layout
 
 ```text
 /opt/egress-gateway/
-  README.md
   timebandit/
-    config.standard.yaml
-    config.open.yaml
-    config.yaml          # runtime copy, ignored by git
-    bin/                 # local Time Bandit binaries, ignored by git
-    log/                 # local audit logs, ignored by git
+    bin/tb
+    config.llm.yaml
+  llm-tls/
+    server.crt
+    server.key
+    upstream-ca-bundle.crt
   unbound/
     Containerfile
     unbound.conf
@@ -68,89 +107,100 @@ same destination entitlement and detection policy.
     egress-unbound.container
   systemd/
     egress-timebandit.service
-  firewall/
-    nftables.conf
-    proxmox-ct-example.fw
-  scripts/
-    build-images.sh
-    install.sh
-    timebandit-mode.sh
-    validate-from-lxc.sh
-  docs/
-    rfc-ingested.md
-    lxc-client-config.md
-    proxmox-lxc-egress-enforcement.md
-    operations.md
+    egress-llm-tls.service
+
+/etc/egress-gateway/timebandit.env
+/run/timebandit/admin.sock
 ```
 
-The old CrabTrap files are retained in the repo for reference and rollback, but
-they are no longer the active gateway service.
+Operational logs and structured audits:
 
-## Install
+```bash
+journalctl -u egress-timebandit.service -f
+```
 
-Run on the Debian 13 gateway host after placing `timebanditd` and `tbctl` under
-`/opt/egress-gateway/timebandit/bin/`:
+## Prerequisites
+
+1. Install a gateway-enabled `tb` build at
+   `/opt/egress-gateway/timebandit/bin/tb`. The self-hosted profiles and guarded
+   HTTP transport are tracked in
+   [Time Bandit PR #291](https://github.com/ductone/timebandit-proxy/pull/291).
+2. Run the OMP auth broker on the orchestration host.
+3. Run the authenticated OMP auth gateway on `192.168.32.101:4001`.
+4. Create `/etc/egress-gateway/timebandit.env`:
+
+```text
+TB_LLM_CLIENT_TOKEN=<random client bearer>
+VLLM_LOCAL_TOKEN=<random target bearer>
+OMP_LOCAL_TOKEN=<OMP auth-gateway bearer>
+```
+
+`VLLM_LOCAL_TOKEN` is injected even though the current vLLM service does not
+enforce it. This preserves a credentialed target contract without exposing a
+target credential to API callers.
+
+## Install or update
+
+Place this checkout at `/opt/egress-gateway`, provision the binary and secret
+environment file, then run:
 
 ```bash
 cd /opt/egress-gateway
 sudo ./scripts/install.sh
 ```
 
-The install script installs base packages, builds the Unbound image, disables
-the old CrabTrap/Postgres units if present, installs the Time Bandit systemd
-unit, starts Unbound, and starts Time Bandit.
+The installer validates the config, removes obsolete CrabTrap/Postgres
+Quadlets and stale NAT, rebuilds Unbound, generates the LLM TLS leaf, and
+enables:
 
-## Restricted LXC Proxy Settings
+- `egress-unbound.service`
+- `egress-timebandit.service`
+- `egress-llm-tls.service`
 
-Time Bandit does not require a gateway-auth token in the proxy URL.
+The legacy CrabTrap source and generic Time Bandit configs remain for
+reference; they are not active services.
 
-```bash
-export HTTP_PROXY=http://192.168.32.100:8080
-export HTTPS_PROXY=http://192.168.32.100:8080
-export NO_PROXY=localhost,127.0.0.1,::1,192.168.32.100
+## OMP client configuration
+
+OMP can read the gateway bearer from a root-only file:
+
+```yaml
+providers:
+  timebandit:
+    baseUrl: https://llm-gateway.spark.home.arpa:8181/v1
+    apiKey: "!cat /root/.config/timebandit/client.token"
+    authHeader: true
+    api: openai-responses
+    models:
+      - id: agent-default
+        name: Time Bandit Triage
+        api: openai-responses
+        reasoning: true
+        supportsTools: true
+        contextWindow: 272000
+        maxTokens: 131072
 ```
 
-Install the gateway CA into each restricted LXC trust store before expecting
-normal HTTPS tools to work through the proxy.
+Guarded OMP clients must trust the gateway CA and set
+`HTTPS_PROXY=http://192.168.32.100:8080`.
 
-## Standard Policy
-
-Standard mode is default-deny and allows known software and LLM service
-destinations:
-
-- Debian package repositories
-- npm registry reads
-- PyPI metadata and Python package files
-- GitHub and GitHubusercontent
-- OpenAI API, ChatGPT auth/backend endpoints used by Codex
-
-Unapproved public destinations are denied. Private, loopback, link-local, and
-metadata destinations remain blocked by Time Bandit and by the LXC firewall.
-
-Codex/ChatGPT frontend hosts (`chatgpt.com`, `ab.chatgpt.com`) have a scoped
-route override that keeps the destination allowlist enforced but limits body
-inspection to a 1-byte prefix. This avoids false positives from compressed
-WebSocket/model streams while keeping full body inspection on other allowed
-destinations such as `api.openai.com`.
-
-## Egress Modes
+## Verification
 
 ```bash
-/opt/egress-gateway/scripts/timebandit-mode.sh status
-/opt/egress-gateway/scripts/timebandit-mode.sh standard
-/opt/egress-gateway/scripts/timebandit-mode.sh open 30m
+systemctl is-active \
+  egress-unbound.service \
+  egress-timebandit.service \
+  egress-llm-tls.service
+
+# Expected: 403
+curl -o /dev/null -w '%{http_code}\n' https://example.com
+
+# Expected: 401
+curl -o /dev/null -w '%{http_code}\n' \
+  https://llm-gateway.spark.home.arpa:8181/v1/models
+
+# Expected: 200
+curl -o /dev/null -w '%{http_code}\n' \
+  -H "Authorization: Bearer $(cat ~/.config/timebandit/client.token)" \
+  https://llm-gateway.spark.home.arpa:8181/v1/models
 ```
-
-Open mode allows public destinations temporarily while keeping Time Bandit
-running, preserving audit logging and built-in private-network protections.
-
-## Firewall
-
-Use `firewall/nftables.conf` as the gateway host firewall baseline. It allows:
-
-- DNS from `192.168.32.0/20`
-- Time Bandit proxy from `192.168.32.0/20`
-- SSH from `192.168.32.0/20`
-
-The Proxmox LXC firewall must still enforce the restricted-container outbound
-boundary. See `docs/proxmox-lxc-egress-enforcement.md`.
