@@ -8,7 +8,7 @@ This repository deploys the gateway used by the guarded host
 | Service | Address | Purpose |
 |---|---|---|
 | Unbound | `192.168.32.100:53/tcp+udp` | Guarded DNS resolver and local `spark.home.arpa` records |
-| Time Bandit explicit proxy | `192.168.32.100:8080` | Default-deny HTTPS `CONNECT` egress |
+| Time Bandit explicit proxy | `192.168.32.100:8080` | Audited observe-mode HTTPS `CONNECT` egress |
 | LLM API TLS frontend | `https://llm-gateway.spark.home.arpa:8181/v1` | Authenticated OpenAI/Anthropic-compatible model API |
 | Time Bandit LLM listener | `127.0.0.1:8182` | Loopback-only API behind the TLS frontend |
 | Time Bandit admin HTTP | `127.0.0.1:9901` | Read-only local administration |
@@ -57,9 +57,15 @@ request through the only permitted egress socket.
 
 ## Egress policy
 
-The active configuration is default-deny. It allows the configured Debian,
-npm, PyPI, GitHub, OpenAI, model-target, and local LLM API destinations.
-Unknown destinations receive `403`.
+The explicit proxy listener runs in `observe` mode. Existing allowlist rules
+still resolve known destinations as `ALLOW`; unmatched public destinations are
+forwarded while the audit records their would-be `DENY`, destination host,
+pinned IP, source, and enforcement as `monitor_only`.
+
+This exception is listener-scoped. The authenticated LLM API and model-routing
+policy remain globally enforced. Time Bandit's SSRF floor also remains active:
+private, loopback, link-local, reserved, and cloud-metadata destinations are
+still blocked.
 
 Port `8080` is CONNECT-only. Plain HTTP absolute-form proxy requests are
 rejected with `400`; guarded clients must use HTTPS origin URLs. In particular,
@@ -80,6 +86,8 @@ mirror the same allowlist as an outer boundary that guest root cannot change.
 ## Security boundary
 
 - The LLM listener rejects unauthenticated requests.
+- Observe mode applies only to the public explicit-proxy listener; LLM
+  authentication, credential vending, and model-route policy remain enforced.
 - `/etc/egress-gateway/timebandit.env` is root-owned mode `0600`; credentials
   are not stored in this repository.
 - Time Bandit injects target credentials only after policy and route selection.
@@ -198,8 +206,9 @@ systemctl is-active \
   egress-timebandit.service \
   egress-llm-tls.service
 
-# Expected: 403
+# Expected: 200, with a would-be-DENY audit record
 curl -o /dev/null -w '%{http_code}\n' https://example.com
+journalctl -u egress-timebandit.service --grep example.com
 
 # Expected: 401
 curl -o /dev/null -w '%{http_code}\n' \
