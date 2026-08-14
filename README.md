@@ -72,6 +72,11 @@ rejected with `400`; guarded clients must use HTTPS origin URLs. In particular,
 install `guarded-host/debian.sources` at
 `/etc/apt/sources.list.d/debian.sources` before running APT.
 
+Decrypted HTTP/2 origin responses use a size-aware relay: small finite bodies
+retain pre-head inspection, while large, realtime, and unknown-length bodies
+stream through bounded-memory chunk inspection. Large downloads are not capped
+at the historical 8 MiB reassembly ceiling.
+
 The guarded host also enforces this socket boundary in `/etc/nftables.conf`:
 The tracked source is `firewall/guarded-host.nft`.
 
@@ -137,8 +142,9 @@ journalctl -u egress-timebandit.service -f
 1. Install a gateway-enabled `tb` build at
    `/opt/egress-gateway/timebandit/bin/tb`. The self-hosted profiles and guarded
    HTTP transport landed through
-   [PR #291](https://github.com/ductone/timebandit-proxy/pull/291) and
-   [PR #292](https://github.com/ductone/timebandit-proxy/pull/292).
+   [PR #291](https://github.com/ductone/timebandit-proxy/pull/291),
+   [PR #292](https://github.com/ductone/timebandit-proxy/pull/292), and
+   [PR #293](https://github.com/ductone/timebandit-proxy/pull/293).
 2. Run the OMP auth broker on the orchestration host.
 3. Run the authenticated OMP auth gateway on `192.168.32.101:4001`.
 4. Create `/etc/egress-gateway/timebandit.env`:
