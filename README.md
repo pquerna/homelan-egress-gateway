@@ -128,8 +128,9 @@ journalctl -u egress-timebandit.service -f
 
 1. Install a gateway-enabled `tb` build at
    `/opt/egress-gateway/timebandit/bin/tb`. The self-hosted profiles and guarded
-   HTTP transport are tracked in
-   [Time Bandit PR #291](https://github.com/ductone/timebandit-proxy/pull/291).
+   HTTP transport landed through
+   [PR #291](https://github.com/ductone/timebandit-proxy/pull/291) and
+   [PR #292](https://github.com/ductone/timebandit-proxy/pull/292).
 2. Run the OMP auth broker on the orchestration host.
 3. Run the authenticated OMP auth gateway on `192.168.32.101:4001`.
 4. Create `/etc/egress-gateway/timebandit.env`:
