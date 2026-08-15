@@ -144,8 +144,8 @@ llm:
           target: fast
           base_threshold: 0.6
           threshold_step: 0.15
-          recent_turn_window: 12
-          max_output_tokens: 512
+          recent_turn_window: 3
+          max_output_tokens: 1024
         handoff_notes:
           escalation_note: >-
             The previous turns on the fast model did not converge. Re-read the
