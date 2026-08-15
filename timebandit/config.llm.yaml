@@ -2,8 +2,8 @@ version: 1
 
 mode: enforce
 
-# Model routes stay globally enforced. The explicit proxy listener below is the
-# scoped observe-only exception for public egress discovery.
+# Model-provider routes are scoped observe-only carve-outs: Stage-0 findings are
+# audited but do not block provider calls. All other routes stay enforced.
 dev:
   allow_private_destinations: true
 upstream:
@@ -47,11 +47,15 @@ policy:
       to: { host: [vllm-provider] }
       inject: vllm-local
       posture: llm-gateway
+      mode: observe
+      reason: "Operator-selected LLM availability carve-out; audit all Stage-0 findings"
   - allow:
       name: local-omp-model
       to: { host: [omp-provider] }
       inject: omp-local
       posture: llm-gateway
+      mode: observe
+      reason: "Operator-selected LLM availability carve-out; audit all Stage-0 findings"
   - allow:
       name: local-llm-api
       to: { host: [gateway-api] }
